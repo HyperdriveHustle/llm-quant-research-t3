@@ -1,0 +1,54 @@
+schema_version: "0.1"
+model: "glm-5.3"
+base_config: "../configs/paper-t3.yaml"
+
+groups:
+  paper_core:
+    enabled: true
+    tasks:
+      - id: "A1_cot"
+        algorithm: "cot"
+        seed_collections: ["kbar", "price"]
+        rounds: 10
+      - id: "A2_tot"
+        algorithm: "tot"
+        seed_collections: ["kbar", "price"]
+        rounds: 3
+        candidates_per_node: 6
+        top_k: 3
+      - id: "A3_ea"
+        algorithm: "ea"
+        seed_collections: ["kbar", "rolling"]
+        generations: 10
+        generate_size: 30
+        population_size: 30
+        mutation_rate: 0.4
+        crossover_rate: 0.6
+
+  temporal_generalization:
+    enabled: false
+    requires_profile: "controlled_oos"
+    primary_algorithm: "ea"
+    tasks:
+      - id: "B1"
+        search: ["2020-01-01", "2022-12-31"]
+        validation: ["2023-01-01", "2023-12-31"]
+        test: ["2024-01-01", "2024-12-31"]
+      - id: "B2"
+        search: ["2020-01-01", "2023-12-31"]
+        validation: ["2024-01-01", "2024-12-31"]
+        test: ["2025-01-01", "2025-12-31"]
+      - id: "B3"
+        search: ["2020-01-01", "2024-12-31"]
+        validation: ["2025-01-01", "2025-06-30"]
+        test: ["2025-07-01", "2025-12-31"]
+
+  agent_loop:
+    enabled: false
+    requires_profile: "agentic_goal_loop"
+    conditions: ["original_ea", "glm_agent_loop"]
+
+  token_budget:
+    enabled: false
+    requires_profile: "token_budget_scaling"
+    logical_tokens: [16000, 32000, 64000, 128000]

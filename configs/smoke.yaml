@@ -1,0 +1,83 @@
+schema_version: "0.1"
+profile: "smoke"
+variant_id: "integration_smoke_not_paper_result"
+paper_result: false
+random_seed: 0
+
+upstream:
+  repository: "https://github.com/CityU-MLO/AlphaBench"
+  paper_runtime: "third_party/AlphaBench-paper"
+  full_commit_sha: "3a880599358fc81d8b3e0ec89419a7912a5dc694"
+  engine: "qlib"
+  assay_enabled: false
+
+data:
+  provider_uri: "data/raw/qlib/releases/2026-07-29/cn_data"
+  snapshot_manifest: "data/snapshots/qlib-cn-manifest.json"
+  source:
+    type: "investment_data_release"
+    release_tag: "2026-07-29"
+    manifest_url: "https://github.com/chenditc/investment_data/releases/download/2026-07-29/qlib_bin.manifest.json"
+    archive_url: "https://github.com/chenditc/investment_data/releases/download/2026-07-29/qlib_bin.tar.gz"
+  market: "csi300"
+  instruments: "CSI300"
+  benchmark: "SH000300"
+  frequency: "day"
+  label: "close_return"
+  start: "2023-01-01"
+  end: "2023-03-31"
+
+model:
+  provider: "ark_coding_openai"
+  model_id: "glm-5.3"
+  api_mode: "responses"
+  api_key_env: "ARK_API_KEY"
+  base_url_env: "ARK_BASE_URL"
+  temperature: 1.0
+  timeout_seconds: 180
+
+search:
+  algorithm: "cot"
+  enable_reason: true
+  seed_collections:
+    - kbar
+    - price
+  exclude_variable: "vwap"
+  max_seeds: 1
+  max_submissions: 1
+  max_retries_per_step: 2
+  cot:
+    rounds: 1
+  tot:
+    rounds: 1
+    candidates_per_node: 1
+    top_k: 1
+  ea:
+    mutation_rate: 0.4
+    crossover_rate: 0.6
+    generations: 1
+    generate_size: 2
+    population_size: 3
+    seeds_top_k: 3
+
+paper_metrics:
+  effective_ic_threshold: 0.03
+
+runtime:
+  run_root: "runs"
+  artifact_root: "artifacts"
+  trajectory_root: "trajectories"
+  search:
+    host: "127.0.0.1"
+    port: 19881
+    cache_path: "runs/runtime/search-smoke/factor_cache.sqlite"
+  verifier:
+    host: "127.0.0.1"
+    port: 19882
+    cache_path: "runs/runtime/verifier-smoke/factor_cache.sqlite"
+
+extensions:
+  controlled_oos: false
+  agentic_goal_loop: false
+  token_budget_scaling: false
+  null_world: false

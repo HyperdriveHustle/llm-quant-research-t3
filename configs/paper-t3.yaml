@@ -1,0 +1,84 @@
+schema_version: "0.1"
+profile: "paper_compatible_reproduction"
+variant_id: "strict_t3"
+paper_result: false
+comparability: "paper_spec_and_pinned_code_not_bitwise_paper_data"
+random_seed: 0
+
+upstream:
+  repository: "https://github.com/CityU-MLO/AlphaBench"
+  paper_runtime: "third_party/AlphaBench-paper"
+  full_commit_sha: "3a880599358fc81d8b3e0ec89419a7912a5dc694"
+  engine: "qlib"
+  assay_enabled: false
+
+data:
+  provider_uri: "data/raw/qlib/releases/2026-07-29/cn_data"
+  snapshot_manifest: "data/snapshots/qlib-cn-manifest.json"
+  source:
+    type: "investment_data_release"
+    release_tag: "2026-07-29"
+    manifest_url: "https://github.com/chenditc/investment_data/releases/download/2026-07-29/qlib_bin.manifest.json"
+    archive_url: "https://github.com/chenditc/investment_data/releases/download/2026-07-29/qlib_bin.tar.gz"
+  market: "csi300"
+  instruments: "CSI300"
+  benchmark: "SH000300"
+  frequency: "day"
+  label: "close_return"
+  start: "2020-01-01"
+  end: "2025-12-31"
+
+model:
+  provider: "ark_coding_openai"
+  model_id: "glm-5.3"
+  api_mode: "responses"
+  api_key_env: "ARK_API_KEY"
+  base_url_env: "ARK_BASE_URL"
+  temperature: 1.0
+  timeout_seconds: 180
+
+search:
+  algorithm: "ea"
+  enable_reason: true
+  seed_collections:
+    - kbar
+    - rolling
+  exclude_variable: "vwap"
+  max_seeds: null
+  max_submissions: 30
+  max_retries_per_step: 5
+  cot:
+    rounds: 10
+  tot:
+    rounds: 3
+    candidates_per_node: 6
+    top_k: 3
+  ea:
+    mutation_rate: 0.4
+    crossover_rate: 0.6
+    generations: 10
+    generate_size: 30
+    population_size: 30
+    seeds_top_k: 12
+
+paper_metrics:
+  effective_ic_threshold: 0.03
+
+runtime:
+  run_root: "runs"
+  artifact_root: "artifacts"
+  trajectory_root: "trajectories"
+  search:
+    host: "127.0.0.1"
+    port: 19881
+    cache_path: "runs/runtime/search/factor_cache.sqlite"
+  verifier:
+    host: "127.0.0.1"
+    port: 19882
+    cache_path: "runs/runtime/verifier/factor_cache.sqlite"
+
+extensions:
+  controlled_oos: false
+  agentic_goal_loop: false
+  token_budget_scaling: false
+  null_world: false
