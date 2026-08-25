@@ -2,9 +2,9 @@
 
 这是一个全新、独立的 AlphaBench T3 Harness。项目不依赖本仓库已有的量化代码或数据；Qlib 数据、pinned upstream、配置、运行记录、trajectory 和评测产物均在本目录隔离。
 
-首版核心问题是：在 AlphaBench T3 的 seed、搜索算法、过滤和指标下，GLM-5.3 的因子搜索表现如何。模型自主 loop、controlled OOS 和 token budget 是关闭的扩展。
+首版核心问题是：在 AlphaBench T3 的 seed、搜索算法、过滤和指标下，GLM-5.3 的因子搜索表现如何。模型自主 loop、controlled OOS 和 long-horizon checkpoints 是关闭的扩展。
 
-首个 profile 尽量保持论文设计：Qlib/FFO、CSI300 日频 OHLCV、Alpha158 seed、CoE/ToT/EA、论文过滤规则和论文搜索指标。Agentic Goal Loop、token-budget scaling 和额外过拟合诊断全部作为独立 extension profile，不进入 strict_t3 主分数。
+首个 profile 尽量保持论文设计：Qlib/FFO、CSI300 日频 OHLCV、Alpha158 seed、CoE/ToT/EA、论文过滤规则和论文搜索指标。Agentic Goal Loop、long-horizon checkpoints 和额外过拟合诊断全部作为独立 extension profile，不进入 strict_t3 主分数。
 
 参考基线：
 
@@ -53,7 +53,7 @@
 | [论文基线](docs/PAPER_BASELINE.md) | 数据、seed、算法、指标、上游版本与扩展边界 |
 | [Harness](docs/HARNESS.md) | 组件、接口、Agent/Verifier 隔离和扩展 profile |
 | [实验协议](experiments/README.md) | Paper Core、独立验证和关闭的扩展实验 |
-| [长时实验分组](experiments/LONG_RUN_PLAN.md) | CoT/ToT/EA、OOS、Agent Loop 与 token-budget 任务 |
+| [长时实验分组](experiments/LONG_RUN_PLAN.md) | CoT/ToT/EA、OOS、深度研究、Null 与 Agent Loop |
 | [Trajectory](docs/TRAJECTORY.md) | 上游原生输出、事件流和派生数据 |
 
 ## 项目不变量
@@ -61,7 +61,7 @@
 - Verifier 数据和结果永不暴露给当前 Agent episode。
 - strict_t3 先复用论文 Qlib/FFO、Alpha158、CSI300、OHLCV 和论文指标。
 - Agent Runtime 与 Verifier Runtime 使用独立进程、数据权限、endpoint 和 cache。
-- 同一个 token-budget 对比中，模型版本、任务、工具、数据和评价调用预算保持一致。
+- 长程任务不限制模型调用；所有尝试和 prefix checkpoints 必须完整记录。
 - 因子预测指标与组合收益指标分层报告；Sharpe 不是原始 T3 的唯一目标。
 - 失败实验和被拒绝候选同样进入账本。
 - 本目录只定义实验流程和依赖，不替用户制定项目时间规划。

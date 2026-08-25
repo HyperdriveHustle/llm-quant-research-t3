@@ -80,5 +80,5 @@ runtime:
 extensions:
   controlled_oos: false
   agentic_goal_loop: false
-  token_budget_scaling: false
+  long_horizon_checkpoints: false
   null_world: false

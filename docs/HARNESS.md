@@ -155,10 +155,10 @@ Search 与 Verify cache key 都必须包含：
 - 模型自主选择研究动作；
 - 其他核心组件不变。
 
-### token_budget（关闭）
+### long_horizon_checkpoints（关闭）
 
-- 在 agentic_goal_loop 上改变累计 token budget；
-- evaluator 调用预算等其他变量固定。
+- 不限制 Agent 的模型调用；
+- 在预注册 evaluator-call 前缀保存 best-so-far、累计 token 和 OOS 回放。
 
 ## 7. 目录和依赖隔离
 

@@ -73,8 +73,8 @@
 
 ## Extensions
 
-- [x] Interfaces leave room for controlled OOS, Agentic Goal Loop and token-budget studies.
+- [x] Interfaces leave room for controlled OOS, Agentic Goal Loop and long-horizon checkpoints.
 - [x] All extensions are disabled in paper-compatible config.
 - [ ] Controlled OOS is not implemented in v0.1.
 - [ ] Agentic Goal Loop is not implemented in v0.1.
-- [ ] Token-budget scaling is not implemented in v0.1.
+- [ ] Long-horizon checkpoint aggregation is not implemented in v0.1.

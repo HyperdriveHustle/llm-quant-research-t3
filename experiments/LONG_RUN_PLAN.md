@@ -1,167 +1,214 @@
-# GLM-5.3 Long-run IC Experiment Plan
+# GLM-5.3 Long-horizon Research Plan
 
-## Decision
+## Principle
 
-The long-run study is divided into four groups. Group A is the required paper-compatible core. Groups B–D answer different research questions and must not be merged into the paper score.
+The long-horizon study does not optimize or constrain model-call cost. Paper reproduction keeps the paper's original rounds; autonomous tasks may continue for as many model calls as needed.
 
-All groups reuse:
+Tokens, model calls and factor evaluations are still recorded because:
 
-- model: GLM-5.3 through Ark Responses API;
-- Qlib 0.9.7 and the pinned 2026-07-29 data snapshot;
-- CSI300 daily OHLCV;
-- close_return, next-day return semantics;
-- pinned AlphaBench commit 3a880599;
-- Alpha158 seeds and original factor filter;
-- Search FFO / Verify FFO isolation;
-- IC, RankIC, ICIR and paper search metrics;
-- immutable submissions and full trajectories.
+- every attempted factor must enter the multiple-testing ledger;
+- prefix checkpoints reveal whether longer research improves OOS evidence;
+- repeated validation queries are a signal of selection overfitting;
+- runs must remain finite and operationally safe.
 
-## Group A — Paper-compatible T3 Core
+Long autonomous episodes terminate by scientific criteria, not by token budget:
 
-### A1: CoE / CoT Sequential Refinement
+1. required evidence gates are satisfied and the Agent submits;
+2. the Agent concludes that the hypothesis should be rejected;
+3. a plateau is reached across multiple hypothesis branches;
+4. only a generous fail-safe evaluator ceiling is reached.
+
+All groups reuse GLM-5.3, the pinned Qlib snapshot, CSI300 daily OHLCV, close_return, Alpha158, pinned AlphaBench code, isolated Search/Verify FFO, immutable submissions and complete trajectories.
+
+## Group A — Paper-compatible T3
+
+Group A establishes the original benchmark baseline. Its search depth remains fixed because changing it would no longer reproduce the paper task.
+
+### A1: CoT sequential refinement
 
 Goal:
 
-> Starting from each KBar and price Alpha158 seed, find a valid formula with higher IC than the seed; report whether the final IC exceeds 0.03.
+> Starting from each KBar and price Alpha158 seed, find a valid formula with higher IC than the seed and determine whether IC exceeds 0.03.
 
-Settings:
-
-| Field | Value |
+| Setting | Value |
 |---|---|
 | Seeds | KBar + Price, VWAP excluded |
 | Rounds | 10 per seed |
-| Candidate generation | 1 per round |
-| Maximum retries | 5 per valid step |
-| Selection | Higher IC; RankIC/IR tie-break |
-| Main outputs | search cost, success rate, seed delta, IC>0.03, trajectory |
+| Generation | 1 candidate per round |
+| Retry | Up to 5 per valid step |
+| Selection | IC; RankIC/IR tie-break |
+| Verifier | PaperFactorVerifier |
 
-Expected upper-bound workload from the pinned seed set is approximately 13 seeds × 10 rounds = 130 candidates, excluding retries.
+Approximate upper-bound workload: 13 seeds × 10 rounds = 130 candidates before retries.
 
-### A2: ToT Branching Search
+### A2: ToT branching search
 
 Goal:
 
-> Determine whether branching exploration finds better and more diverse factors than the sequential chain under the paper search policy.
+> Determine whether branching exploration finds better and more diverse factors than the sequential chain.
 
-Settings:
-
-| Field | Value |
+| Setting | Value |
 |---|---|
-| Seeds | KBar + Price, VWAP excluded |
+| Seeds | KBar + Price |
 | Depth | 3 |
 | Candidates per node | 6 |
-| Survivors per node | Up to 3 |
-| Maximum retries | 5 |
-| Main outputs | best IC, successful-run fraction, AST/output diversity, search cost |
+| Survivors | Up to 3 |
+| Verifier | PaperTreeVerifier |
 
-The worst-case tree contains 1 + 3 + 9 expanded nodes per seed and 6 candidates per node, or about 78 candidates per seed before retries. It is the largest paper-core workload.
+Worst-case workload is about 78 candidates per seed, approximately 1,014 candidates over 13 seeds.
 
-### A3: EA Population Search
+### A3: EA population search
 
 Goal:
 
-> Evolve an Alpha158 population through mutation and crossover and measure how often the best pool is updated.
+> Evolve an Alpha158 population through mutation and crossover and measure how often the best population is updated.
 
-Settings:
-
-| Field | Value |
+| Setting | Value |
 |---|---|
-| Initial pool | Pinned paper commit: KBar + Rolling, VWAP excluded |
+| Initial pool | KBar + Rolling in pinned paper commit |
 | Population | 30 |
 | Generations | 10 |
 | New candidates | 30 per generation |
 | Mutation / crossover | 0.4 / 0.6 |
 | Seed context | Top 12 by IC |
-| Main outputs | best-update rate, IC>0.03, normalized gain, population diversity |
+| Verifier | PaperPopulationVerifier |
 
-Expected workload is the initial seed evaluation plus approximately 300 generated candidates and 20 model generation calls.
+Expected workload: initial seed evaluation plus approximately 300 new candidates and 20 primary generation calls.
 
-### Group A success criteria
+## Group B — Temporal generalization
 
-Group A does not require every run to find an effective factor. It succeeds experimentally when:
+Group B detects whether long search merely adapts to one historical period. The Agent sees search metrics only; validation/test remain verifier-only.
 
-1. every generated candidate and retry is recorded;
-2. Search and Verify FFO results match under the same paper period;
-3. paper metrics are computable for all three algorithms;
-4. model/runtime failures are distinguishable from “no alpha found”;
-5. any IC>0.03 claim is reproduced by independent Verify FFO.
-
-## Group B — Temporal Generalization
-
-This is a controlled extension for detecting selection overfitting. The model sees only the search period; validation/test results remain verifier-only.
-
-| Task | Search period | Validation | Final test | Goal |
+| Task | Search | Validation | Test | Research question |
 |---|---|---|---|---|
-| B1 | 2020–2022 | 2023 | 2024 | Early-history discovery → later regime |
-| B2 | 2020–2023 | 2024 | 2025 | Bear/search → rebound/test |
-| B3 | 2020–2024 | first half 2025 | second half 2025 | Recent-history stability |
+| B1 | 2020–2022 | 2023 | 2024 | Does early-history alpha survive a later regime? |
+| B2 | 2020–2023 | 2024 | 2025 | Does bear-period research survive the rebound? |
+| B3 | 2020–2024 | 2025 H1 | 2025 H2 | Does recent research survive immediate forward time? |
 
-Primary measurements:
+Primary verifier:
 
     selection_gap = search IC - test IC
     oos_delta = test IC(candidate) - test IC(seed)
     direction_retention = sign(search IC) == sign(test IC)
 
-EA is the primary Group B algorithm because its evaluation budget is explicit and easier to hold constant. CoT/ToT can be added only as matched-budget comparisons.
+EA is the primary algorithm because it supports large, explicit populations. CoT/ToT become secondary comparisons.
 
-Group B must be implemented as a new controlled_oos profile. It cannot be simulated by showing validation metrics to the search loop.
+## Group C — Deep single-family research
 
-## Group C — Agent Loop Control
+These are genuine long-horizon Agent tasks. Each episode receives a broad research goal and may repeatedly propose, evaluate, refine, ablate, reject or pivot.
 
-Goal:
-
-> Test whether giving GLM-5.3 control over propose/evaluate/refine/pivot/stop improves hidden OOS results over the external paper loop.
-
-Paired conditions:
-
-| Condition | Loop controller | Data/evaluator/budget |
+| Task | Goal | Required final evidence |
 |---|---|---|
-| C0 | Original EA | Fixed |
-| C1 | GLM-5.3 Agent Loop | Identical to C0 |
+| C1 Momentum | Discover robust trend/momentum formulas | Search IC>0.03 candidate; positive OOS direction; ablation |
+| C2 Reversal | Discover short/medium reversal formulas | Same, across at least two regimes |
+| C3 Volume | Discover volume/liquidity proxy formulas | Incremental value beyond price-only seed |
+| C4 Volatility | Discover volatility-conditioned return signals | Stable ICIR and regime analysis |
+| C5 Price–Volume | Discover interaction/divergence formulas | Low correlation with C1–C4 pool |
 
-Required controls:
+Agent-visible tools:
 
-- same seed population;
-- same factor-evaluation count;
-- same maximum submissions;
-- same data snapshot and test split;
-- same model version and sampling;
-- verifier results never returned to the episode.
+    get_task_spec
+    get_seed_pool
+    check_factor
+    evaluate_factor
+    evaluate_batch
+    factor_similarity
+    record_hypothesis
+    record_decision
+    freeze_submission
 
-This group is not enabled in v0.1.
+Required research phases:
 
-## Group D — Token Budget Scaling
+1. map the mechanism and generate a hypothesis tree;
+2. broad exploration across distinct formula structures;
+3. deepen promising branches with parameter and structural edits;
+4. run ablation and redundancy checks;
+5. test regime sensitivity on search-only subwindows;
+6. reject, pivot or submit with evidence.
+
+Scientific plateau:
+
+> No improvement in the primary robust-search score across 100 consecutive valid evaluations, with at least three independent hypothesis branches attempted.
+
+The fail-safe ceiling is 5,000 factor evaluations per episode. It prevents runaway execution but is not an optimization target.
+
+Verifier: HiddenHypothesisVerifier. It checks frozen direction, OOS IC/RankIC/ICIR, evidence references, ablation, redundancy and selection gap.
+
+## Group D — Diverse factor-pool construction
 
 Goal:
 
-> Measure whether more model tokens improve hidden OOS utility when factor-evaluation calls are held fixed.
+> Produce a library of complementary factors rather than one historical winner.
 
-Suggested pre-registered logical-token budgets:
+Target submission:
 
-    16K, 32K, 64K, 128K per episode
+- up to 10 frozen factors;
+- multiple economic mechanism families;
+- paper-valid formulas;
+- high structural diversity;
+- pairwise absolute output correlation below the registered threshold;
+- positive combined OOS IC/RankIC;
+- no single factor dominating the combined score.
 
-Primary utility:
+The Agent may search broadly for thousands of candidates, but all trials remain in the ledger. Individual high IC is insufficient if the factor duplicates an existing signal.
 
-    U(B) = test signed RankIC(candidate) - test signed RankIC(best seed)
+Verifier: FactorPoolVerifier. It recomputes every factor, D_AST, D_corr, combined equal-weight z-scored signal, leave-one-factor-out ablation and OOS stability.
 
-Also report:
+## Group E — Loop-control comparison
 
-- test IC and ICIR;
-- selection gap;
-- accepted candidates per 1K tokens;
-- evaluator calls per effective improvement;
-- repeated/duplicate candidate rate;
-- marginal utility per additional 1K tokens.
+Goal:
 
-Group D runs only after Group B provides a hidden test protocol. Otherwise more tokens may only mean more adaptation to the same search period.
+> Determine whether a self-directed research loop is better than the original external EA loop when both can run long enough to converge.
 
-## Recommended execution order by evidence dependency
+| Condition | Controller |
+|---|---|
+| E0 | Original AlphaBench EA |
+| E1 | GLM-5.3 Agent Loop |
 
-    A3 EA paper-compatible core
-      → A1 CoT
-      → A2 ToT
-      → B1/B2/B3 temporal generalization
-      → C0/C1 loop-control comparison
-      → D token-budget scaling
+The primary comparison is unconstrained final OOS quality under the same fail-safe ceiling. Secondary matched-prefix comparisons are made at:
 
-This is an evidence dependency, not a time schedule. A later group is interpretable only after its required verifier boundary exists.
+    50, 100, 250, 500, 1000 factor evaluations
+
+This produces a search-quality curve without forcing the long Agent to stop at each checkpoint.
+
+Verifier: PairedLoopVerifier. It checks data/seed/model equality, compares prefix and final OOS results, and reports research depth, duplicate rate, pivot quality and false-discovery behavior.
+
+## Group F — Null and falsification
+
+Long search dramatically increases the chance of finding lucky historical correlations. Group F is mandatory before claiming that Groups C–E discover alpha.
+
+| Task | Environment | Expected behavior |
+|---|---|---|
+| F1 Label Shuffle | Future returns shuffled within date | No factor should pass final gates |
+| F2 Time Permutation | Return dates permuted in blocks | Agent should reject or stop |
+| F3 Null Twin | Same market structure with planted alpha removed | False discovery rate remains controlled |
+
+Verifier: NullDiscoveryVerifier. Because ground truth is known, it directly reports:
+
+    false_discovery_rate
+    claims_per_1000_trials
+    best_visible_null_IC
+    hidden_null_IC
+    correct_no_discovery_rate
+
+An Agent that always submits a factor is penalized. Correctly concluding “no supported discovery” is a successful outcome.
+
+## Trajectory checkpoints, not budgets
+
+Every long episode records best-so-far and research-process state at:
+
+    evaluator calls: 50 / 100 / 250 / 500 / 1000 / 2500 / 5000
+    cumulative logical tokens
+    elapsed model calls
+
+These checkpoints answer whether additional research continues to create OOS value. They do not limit the Agent or create separate token-budget tasks.
+
+## Evidence dependency
+
+    A3 → A1/A2
+       → B1/B2/B3
+       → C1–C5 + F1–F3
+       → D
+       → E0/E1
+
+This is an evidence dependency, not a time schedule. Group F must accompany any open-ended long search, and no test result may be returned to the active episode.

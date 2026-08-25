@@ -1,6 +1,12 @@
-schema_version: "0.1"
+schema_version: "0.2"
 model: "glm-5.3"
 base_config: "../configs/paper-t3.yaml"
+cost_optimization: false
+
+trajectory_checkpoints:
+  evaluator_calls: [50, 100, 250, 500, 1000, 2500, 5000]
+  record_tokens: true
+  token_budget_is_a_stop_condition: false
 
 groups:
   paper_core:
@@ -43,12 +49,38 @@ groups:
         validation: ["2025-01-01", "2025-06-30"]
         test: ["2025-07-01", "2025-12-31"]
 
-  agent_loop:
+  deep_family_research:
     enabled: false
     requires_profile: "agentic_goal_loop"
-    conditions: ["original_ea", "glm_agent_loop"]
+    fail_safe_factor_evaluations: 5000
+    plateau_valid_evaluations: 100
+    minimum_hypothesis_branches: 3
+    tasks:
+      - {id: "C1_momentum", family: "momentum"}
+      - {id: "C2_reversal", family: "reversal"}
+      - {id: "C3_volume", family: "volume_liquidity"}
+      - {id: "C4_volatility", family: "volatility_conditioned"}
+      - {id: "C5_price_volume", family: "price_volume_interaction"}
 
-  token_budget:
+  factor_pool:
     enabled: false
-    requires_profile: "token_budget_scaling"
-    logical_tokens: [16000, 32000, 64000, 128000]
+    requires_profile: "agentic_goal_loop"
+    id: "D_factor_pool"
+    max_submissions: 10
+    fail_safe_factor_evaluations: 5000
+
+  loop_control:
+    enabled: false
+    requires_profile: "agentic_goal_loop"
+    fail_safe_factor_evaluations: 5000
+    conditions:
+      - {id: "E0_original_ea", controller: "original_ea"}
+      - {id: "E1_glm_agent", controller: "glm_agent_loop"}
+
+  null_falsification:
+    enabled: false
+    requires_profile: "null_world"
+    tasks:
+      - {id: "F1_label_shuffle", environment: "label_shuffle"}
+      - {id: "F2_time_permutation", environment: "block_time_permutation"}
+      - {id: "F3_null_twin", environment: "null_twin"}

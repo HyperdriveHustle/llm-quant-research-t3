@@ -150,9 +150,9 @@ Paper profile 的 P2 主要验证计算完整性，不声称 hidden OOS 泛化�
 - DSL/operator；
 - FFO；
 - model/version；
--候选评价次数；
--最终提交数；
--论文指标。
+- 候选评价次数；
+- 最终提交数；
+- 论文指标。
 
 唯一主要差异是 SearchRunner：模型可以选择 propose、check、evaluate、refine、compare、pivot 或 stop。Agent 仍不能访问 validation/test。
 
@@ -160,39 +160,26 @@ Paper profile 的 P2 主要验证计算完整性，不声称 hidden OOS 泛化�
 
 先比较论文 search metrics，再看 X1 Verifier。Search 提升而 OOS 不变，结论是更会适应 search evaluator，不是更会泛化。
 
-## X3：Token Budget（扩展，默认关闭）
+## X3：Long-horizon checkpoints（扩展，默认关闭）
 
 ### 问题
 
-在模型和 evaluator 调用次数固定时，增加累计 token 是否提高 OOS utility？
+在不限制模型调用的长程研究中，额外搜索是否继续提高 OOS utility？
 
 ### 设计
 
-预注册 B1 < B2 < B3 < B4。各 budget 固定：
+Agent 不因 token 数停止。系统在以下 evaluator-call 前缀自动保存 best-so-far：
 
-- task、data、seed、prompt、model version；
-- sampling 参数；
-- evaluator 调用预算；
--提交数量；
--replicate 数；
--finalization allowance。
+    50 / 100 / 250 / 500 / 1000 / 2500 / 5000
 
-累计逻辑 token：
+每个 checkpoint 同时记录累计 token、model calls、有效候选、重复率、search metrics 和最终 OOS 回放。
 
-    B = sum(input_tokens + output_tokens)
+主要 utility curve：
 
-主要 utility：
-
-    U(B) = test signed RankIC(candidate)
+    U(n) = test signed RankIC(best candidate after n evaluations)
            - test signed RankIC(best seed)
 
-边际收益：
-
-    MarginalGain_j =
-      [median U(B_j) - median U(B_(j-1))]
-      / [B_j - B_(j-1)] * 1000
-
-报告配对中位差、bootstrap 区间、胜率、selection gap、每千 token 改进和 Budget–Utility 曲线。只提高 search、不提高 test，判定为预算驱动的 selection overfitting。
+只提高 search、不提高 test，说明长程搜索正在加深 selection overfitting。Token 是轨迹解释变量，不再是实验条件或调用上限。
 
 ## 保留的 Trajectory
 

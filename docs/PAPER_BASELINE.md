@@ -175,7 +175,7 @@ IC、RankIC、ICIR 作为基础数值保留，但不使用自创 composite score
 
 - 模型自主控制整个 Agent Loop；
 - hidden OOS split；
-- token-budget scaling；
+- long-horizon checkpoint analysis；
 - null world；
 - 主动 ablation、pivot、stop；
 - 自定义 RankIC 提升阈值；

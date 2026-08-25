@@ -1,6 +1,6 @@
 # Trajectory Schema
 
-Trajectory 必须兼容论文原生输出，同时为未来 Agentic/token 实验提供稳定事件接口。旁路记录不得改变论文 loop。
+Trajectory 必须兼容论文原生输出，同时为未来 Agentic 长程实验提供稳定事件接口。旁路记录不得改变论文 loop。
 
 ## 1. 双层保存
 
@@ -155,8 +155,8 @@ Extension 可以从同一 schema 计算：
 - follow-up depth；
 - duplicate rate；
 - stop efficiency；
-- per-1K-token OOS gain；
-- budget–utility curve。
+- per-prefix OOS gain；
+- evaluator-call/token checkpoint curve。
 
 这些字段不会出现在 paper-compatible 主分数中。
 
@@ -168,7 +168,7 @@ Extension 可以从同一 schema 计算：
 - retry 与修复对；
 - CoE/ToT/EA 的父代—候选—选择路径；
 - search 成功但 OOS 失败的过拟合路径；
-- 同一 task 的 token-budget 配对路径；
+- 同一 task 在不同 evaluator-call 前缀的配对路径；
 - 后续 SFT/RL 可使用的结构化研究轨迹。
 
 训练使用必须另行确认 Qlib 数据许可、AlphaBench license、GLM API 条款和轨迹隐私。
