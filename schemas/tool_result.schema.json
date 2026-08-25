@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/HyperdriveHustle/llm-quant-research-t3/schemas/tool_result.schema.json",
+  "title": "Agentic Quant Research Tool Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "action_id",
+    "status",
+    "state_version",
+    "observations",
+    "registered_ids",
+    "protocol_flags",
+    "checkpoint"
+  ],
+  "properties": {
+    "schema_version": {"const": "0.2"},
+    "action_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "status": {"enum": ["ok", "rejected", "error"]},
+    "state_version": {"type": "integer", "minimum": 0},
+    "observations": {
+      "type": "object",
+      "description": "Structured factual results; no instructions, paths, URLs or hidden metrics."
+    },
+    "registered_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string"}
+    },
+    "protocol_flags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {
+          "code": {"type": "string"},
+          "message": {"type": "string"}
+        }
+      }
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "factor_evaluations",
+        "model_calls",
+        "logical_tokens",
+        "safety_ceiling_remaining"
+      ],
+      "properties": {
+        "factor_evaluations": {"type": "integer", "minimum": 0},
+        "model_calls": {"type": "integer", "minimum": 0},
+        "logical_tokens": {"type": "integer", "minimum": 0},
+        "safety_ceiling_remaining": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

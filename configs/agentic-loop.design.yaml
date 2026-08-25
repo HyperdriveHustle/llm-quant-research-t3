@@ -1,0 +1,58 @@
+schema_version: "0.2-design"
+status: "design_only_not_runnable"
+profile: "agentic_goal_loop"
+base_profile: "paper_compatible_reproduction"
+
+model:
+  model_id: "glm-5.3"
+  api_mode: "responses"
+  total_token_limit: null
+  total_model_call_limit: null
+
+agent:
+  allowed_actions:
+    - propose
+    - evaluate
+    - refine
+    - pivot
+    - stop
+  allowed_window_aliases:
+    - search_full
+    - search_early
+    - search_late
+  max_candidates_per_action: 32
+  invalid_action_threshold: 20
+
+long_horizon:
+  safety_factor_evaluations: 5000
+  plateau_advisory_valid_evaluations: 100
+  minimum_hypothesis_branches_for_plateau: 3
+  checkpoints: [50, 100, 250, 500, 1000, 2500, 5000]
+  checkpoint_tokens: true
+  plateau_forces_stop: false
+
+state:
+  append_only: true
+  deterministic_projection: true
+  llm_summary_enabled: false
+  recent_event_window: 20
+
+tools:
+  direct_ffo_access: false
+  arbitrary_date_ranges: false
+  filesystem_access: false
+  network_access: false
+  code_execution: false
+
+stop:
+  model_controls_normal_stop: true
+  allow_submit: true
+  allow_no_discovery: true
+  force_stop_only_for_safety: true
+
+verifier:
+  agent_can_access: false
+  start_after_agent_exit: true
+  protocol_verifier: true
+  hidden_outcome_verifier: true
+  null_verifier_required_for_open_ended_tasks: true

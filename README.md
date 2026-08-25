@@ -55,6 +55,7 @@
 | [实验协议](experiments/README.md) | Paper Core、独立验证和关闭的扩展实验 |
 | [长时实验分组](experiments/LONG_RUN_PLAN.md) | CoT/ToT/EA、OOS、深度研究、Null 与 Agent Loop |
 | [Trajectory](docs/TRAJECTORY.md) | 上游原生输出、事件流和派生数据 |
+| [Agentic Loop 设计](docs/AGENTIC_LOOP_DESIGN.md) | 模型自主 propose/evaluate/refine/pivot/stop 的 v0.2 设计 |
 
 ## 项目不变量
 
