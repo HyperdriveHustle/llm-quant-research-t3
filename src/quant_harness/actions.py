@@ -28,14 +28,31 @@ class ResearchAction:
 
 
 class ActionParser:
-    def __init__(self, schema_path: Path):
+    def __init__(self, schema_path: Path, *, max_payload_bytes: int = 100_000):
         self.schema_path = schema_path
+        self.max_payload_bytes = int(max_payload_bytes)
+        if self.max_payload_bytes < 1:
+            raise ValueError("max_payload_bytes must be positive")
         self.schema = json.loads(schema_path.read_text(encoding="utf-8"))
         Draft202012Validator.check_schema(self.schema)
         self.validator = Draft202012Validator(self.schema)
 
     def parse(self, value: str | dict[str, Any]) -> ResearchAction:
         if isinstance(value, str):
+            payload_size = len(value.encode("utf-8"))
+            if payload_size > self.max_payload_bytes:
+                raise ActionValidationError(
+                    "action exceeds maximum payload size",
+                    errors=[
+                        {
+                            "path": [],
+                            "message": (
+                                f"received {payload_size} bytes; maximum is "
+                                f"{self.max_payload_bytes}"
+                            ),
+                        }
+                    ],
+                )
             try:
                 payload = json.loads(value)
             except json.JSONDecodeError as exc:
@@ -45,6 +62,11 @@ class ActionParser:
                 ) from exc
         else:
             payload = value
+            payload_size = len(
+                json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            )
+            if payload_size > self.max_payload_bytes:
+                raise ActionValidationError("action exceeds maximum payload size")
         if not isinstance(payload, dict):
             raise ActionValidationError("action root must be an object")
         errors = sorted(self.validator.iter_errors(payload), key=lambda err: list(err.path))

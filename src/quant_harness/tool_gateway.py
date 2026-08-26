@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from .actions import ResearchAction
-from .ffo import FFOClient
+from .ffo import FactorResult, FFOClient
 from .state import ResearchState
 
 
@@ -14,13 +14,14 @@ from .state import ResearchState
 class ModelUsage:
     input_tokens: int = 0
     output_tokens: int = 0
+    model_calls: int = 1
 
     @property
     def logical_tokens(self) -> int:
         return self.input_tokens + self.output_tokens
 
     def to_event(self) -> dict[str, int]:
-        return {"model_calls": 1, "logical_tokens": self.logical_tokens}
+        return {"model_calls": self.model_calls, "logical_tokens": self.logical_tokens}
 
 
 @dataclass(frozen=True)
@@ -184,24 +185,34 @@ class ToolGateway:
             }
             for factor_id in factor_ids
         ]
-        if len(factors) == 1:
-            result_rows = [
-                self.search_client.evaluate(
-                    factors[0]["expression"],
+        try:
+            if len(factors) == 1:
+                result_rows = [
+                    self.search_client.evaluate(
+                        factors[0]["expression"],
+                        market=self.market,
+                        start=start,
+                        end=end,
+                        label=self.label,
+                    )
+                ]
+            else:
+                result_rows = self.search_client.evaluate_batch(
+                    factors,
                     market=self.market,
                     start=start,
                     end=end,
                     label=self.label,
                 )
-            ]
-        else:
-            result_rows = self.search_client.evaluate_batch(
-                factors,
-                market=self.market,
-                start=start,
-                end=end,
-                label=self.label,
+        except Exception as exc:
+            result_rows = self._failed_results(factors, str(exc))
+        if len(result_rows) < len(factors):
+            result_rows = list(result_rows) + self._failed_results(
+                factors[len(result_rows) :],
+                "Search FFO returned fewer results than requested",
             )
+        elif len(result_rows) > len(factors):
+            result_rows = list(result_rows[: len(factors)])
         experiments = []
         for factor_id, result in zip(factor_ids, result_rows):
             experiments.append(
@@ -368,14 +379,6 @@ class ToolGateway:
             evidenced_factor_ids = {
                 state.experiments[evidence_id]["factor_id"] for evidence_id in evidence_ids
             }
-            extra_evidence = sorted(evidenced_factor_ids - set(factor_ids))
-            if extra_evidence:
-                return self._reject(
-                    action,
-                    usage,
-                    "EVIDENCE_FACTOR_MISMATCH",
-                    ", ".join(extra_evidence),
-                )
             missing_evidence = [
                 factor_id for factor_id in factor_ids if factor_id not in evidenced_factor_ids
             ]
@@ -535,7 +538,30 @@ class ToolGateway:
     def _safe_error_message(message: str) -> str:
         flattened = re.sub(r"[\r\n\t]+", " ", message)
         flattened = re.sub(r"https?://\S+", "[redacted-url]", flattened)
+        flattened = re.sub(
+            r"(?<![\w$])/(?:[^/\s]+/)+[^,\s)}\]]*",
+            "[redacted-path]",
+            flattened,
+        )
         return flattened[:1000]
+
+    @classmethod
+    def _failed_results(
+        cls,
+        factors: list[dict[str, str]],
+        message: str,
+    ) -> list[FactorResult]:
+        safe_message = cls._safe_error_message(message)
+        return [
+            FactorResult(
+                name=factor["name"],
+                expression=factor["expression"],
+                success=False,
+                metrics={},
+                error=safe_message,
+            )
+            for factor in factors
+        ]
 
     @staticmethod
     def _rejection_flags(rows: list[dict[str, str]]) -> list[dict[str, str]]:

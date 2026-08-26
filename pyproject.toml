@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llm-quant-research-t3"
-version = "0.1.0"
+version = "0.2.0"
 description = "Paper-first AlphaBench T3 harness with isolated verifier runtime"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
   "PyYAML>=6.0,<7",
   "jsonschema>=4.18,<5",

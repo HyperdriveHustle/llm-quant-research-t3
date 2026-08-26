@@ -95,3 +95,10 @@ def test_submit_requires_factor_and_evidence():
                 },
             }
         )
+
+
+def test_rejects_oversized_model_output():
+    limited = ActionParser(Path("schemas/agent_action.schema.json"), max_payload_bytes=10)
+
+    with pytest.raises(ActionValidationError, match="maximum payload size"):
+        limited.parse("{}" + " " * 20)

@@ -59,3 +59,31 @@ def test_plateau_is_advisory_and_never_forces_stop():
     view = projector.project(state)
     assert view["plateau_advisory"]["active"] is True
     assert view["plateau_advisory"]["forces_stop"] is False
+
+
+def test_top_factor_keeps_compact_evidence_references():
+    state = ResearchState(task_id="task", task_manifest_hash="manifest")
+    state.factors["factor_1"] = {
+        "factor_id": "factor_1",
+        "hypothesis_id": "hyp_1",
+        "name": "factor",
+        "expression": "$close",
+        "created_version": 1,
+        "metrics_by_window": {"search_full": {"ic": 0.1}},
+        "experiment_ids": [f"exp_{index}" for index in range(10)],
+    }
+    projector = StateProjector(
+        ProjectionConfig(
+            allowed_actions=("stop",),
+            allowed_window_aliases=("search_full",),
+            recent_event_window=2,
+            max_factor_evaluations=100,
+            plateau_advisory_valid_evaluations=10,
+        )
+    )
+
+    factor = projector.project(state)["top_factors"][0]
+
+    assert factor["experiment_count"] == 10
+    assert factor["recent_experiment_ids"] == [f"exp_{index}" for index in range(5, 10)]
+    assert "experiment_ids" not in factor

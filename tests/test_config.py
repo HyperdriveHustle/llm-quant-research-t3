@@ -53,3 +53,29 @@ def test_literal_secret_field_is_rejected():
     )
     with pytest.raises(ConfigError, match="literal credential"):
         bad.assert_valid()
+
+
+def test_agentic_config_separates_search_and_hidden_outcome_periods():
+    config = load_config("configs/agentic-smoke.yaml")
+
+    assert config.profile == "agentic_goal_loop"
+    assert (
+        config.raw["agentic"]["window_aliases"]["search_full"][1]
+        < config.raw["outcome_verification"]["start"]
+    )
+
+
+def test_agentic_hidden_outcome_overlap_is_rejected():
+    original = load_config("configs/agentic-smoke.yaml")
+    raw = deepcopy(original.raw)
+    raw["outcome_verification"]["start"] = "2023-03-01"
+    bad = HarnessConfig(
+        path=original.path,
+        project_root=original.project_root,
+        raw=raw,
+        search_endpoint=original.search_endpoint,
+        verifier_endpoint=original.verifier_endpoint,
+    )
+
+    with pytest.raises(ConfigError, match="must start after every search window"):
+        bad.assert_valid()

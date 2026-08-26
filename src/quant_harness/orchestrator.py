@@ -7,6 +7,7 @@ import time
 import uuid
 from pathlib import Path
 
+from .agentic_factory import build_agentic_runner
 from .config import HarnessConfig
 from .env import sanitized_verifier_env
 from .ffo import FFOClient
@@ -30,7 +31,15 @@ def run_end_to_end(config: HarnessConfig) -> tuple[Path, Path]:
             role="search",
             timeout=int(config.model["timeout_seconds"]),
         )
-        submission = PaperRunner(config, search_client=search_client, run_id=run_id).run()
+        if config.profile == "agentic_goal_loop":
+            runner = build_agentic_runner(
+                config,
+                search_client=search_client,
+                run_id=run_id,
+            )
+        else:
+            runner = PaperRunner(config, search_client=search_client, run_id=run_id)
+        submission = runner.run()
     report_path = verify_submission(config, submission.path)
     return submission.path, report_path
 

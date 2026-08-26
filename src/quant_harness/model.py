@@ -16,7 +16,9 @@ from .trajectory import writer_from_env
 
 
 class ModelError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, attempts: int = 1):
+        super().__init__(message)
+        self.attempts = int(attempts)
 
 
 @dataclass(frozen=True)
@@ -26,6 +28,7 @@ class ModelResponse:
     input_tokens: int
     output_tokens: int
     raw: dict[str, Any]
+    attempts: int = 1
 
 
 def _sha256(text: str) -> str:
@@ -110,6 +113,8 @@ class ArkModelClient:
         json_output: bool = False,
         max_attempts: int = 3,
     ) -> ModelResponse:
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be positive")
         if self.api_mode == "responses":
             endpoint = f"{self.base_url}/responses"
             payload: dict[str, Any] = {
@@ -155,6 +160,7 @@ class ArkModelClient:
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
                     raw=raw,
+                    attempts=attempt,
                 )
                 self._record_call(
                     prompt=prompt,
@@ -173,7 +179,8 @@ class ArkModelClient:
                 last_error = ModelError(f"Ark request failed: {redact(str(exc))}")
             if attempt < max_attempts:
                 time.sleep(min(2 ** (attempt - 1), 4))
-        raise last_error or ModelError("Ark request failed")
+        message = str(last_error) if last_error is not None else "Ark request failed"
+        raise ModelError(message, attempts=attempt)
 
     def _record_call(
         self,

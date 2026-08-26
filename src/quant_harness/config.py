@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -88,8 +89,13 @@ class HarnessConfig:
             errors.append("strict T3 market must be csi300")
         if self.raw.get("data", {}).get("label") != "close_return":
             errors.append("strict T3 label must be close_return")
-        if self.search.get("algorithm") not in {"cot", "tot", "ea"}:
-            errors.append("search.algorithm must be cot, tot, or ea")
+        allowed_algorithms = {"cot", "tot", "ea"}
+        if self.profile == "agentic_goal_loop":
+            allowed_algorithms.add("agentic")
+        if self.search.get("algorithm") not in allowed_algorithms:
+            errors.append("search.algorithm is incompatible with the selected profile")
+        if self.profile == "agentic_goal_loop":
+            errors.extend(self._validate_agentic())
         if self.paper_result and not self.raw.get("exact_paper_snapshot_verified", False):
             errors.append("paper_result=true requires exact_paper_snapshot_verified=true")
         if self.search_endpoint.base_url == self.verifier_endpoint.base_url:
@@ -139,6 +145,130 @@ class HarnessConfig:
                 errors.append(f"missing upstream runtime: {self.upstream_runtime}")
             if not self.provider_uri.exists():
                 errors.append(f"missing Qlib data: {self.provider_uri}")
+        return errors
+
+    def _validate_agentic(self) -> list[str]:
+        errors: list[str] = []
+        agentic = self.raw.get("agentic")
+        if not isinstance(agentic, dict):
+            return ["agentic_goal_loop requires an agentic mapping"]
+        required = {
+            "task_id",
+            "goal",
+            "allowed_actions",
+            "window_aliases",
+            "check_period",
+            "max_candidates_per_action",
+            "safety",
+            "checkpoints",
+            "recent_event_window",
+            "plateau_advisory_valid_evaluations",
+        }
+        missing = sorted(required - set(agentic))
+        if missing:
+            errors.append("agentic config missing: " + ", ".join(missing))
+            return errors
+        if not isinstance(agentic["task_id"], str) or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", agentic["task_id"]
+        ):
+            errors.append("agentic.task_id must be a stable identifier")
+        if not isinstance(agentic["goal"], str) or not agentic["goal"].strip():
+            errors.append("agentic.goal must be a non-empty string")
+        canonical_actions = {"propose", "evaluate", "refine", "pivot", "stop"}
+        configured_actions = agentic["allowed_actions"]
+        if (
+            not isinstance(configured_actions, list)
+            or any(not isinstance(value, str) for value in configured_actions)
+            or set(configured_actions) != canonical_actions
+        ):
+            errors.append("agentic.allowed_actions must contain the canonical five actions")
+        aliases = agentic["window_aliases"]
+        if not isinstance(aliases, dict) or not aliases:
+            errors.append("agentic.window_aliases must be a non-empty mapping")
+            aliases = {}
+        unsupported_aliases = sorted(set(aliases) - {"search_full", "search_early", "search_late"})
+        if unsupported_aliases:
+            errors.append("unsupported search window aliases: " + ", ".join(unsupported_aliases))
+        search_periods: list[tuple[date, date]] = []
+        for alias, period in aliases.items():
+            try:
+                start, end = date.fromisoformat(str(period[0])), date.fromisoformat(str(period[1]))
+            except (TypeError, ValueError, IndexError):
+                errors.append(f"agentic.window_aliases.{alias} must be two ISO dates")
+                continue
+            if start > end:
+                errors.append(f"agentic.window_aliases.{alias} start must not exceed end")
+            search_periods.append((start, end))
+        try:
+            check_start = date.fromisoformat(str(agentic["check_period"][0]))
+            check_end = date.fromisoformat(str(agentic["check_period"][1]))
+            if check_start > check_end:
+                errors.append("agentic.check_period start must not exceed end")
+        except (TypeError, ValueError, IndexError):
+            errors.append("agentic.check_period must be two ISO dates")
+        max_candidates = agentic["max_candidates_per_action"]
+        if not isinstance(max_candidates, int) or not 1 <= max_candidates <= 32:
+            errors.append("agentic.max_candidates_per_action must be between 1 and 32")
+        safety = agentic["safety"]
+        safety_keys = {
+            "invalid_action_threshold",
+            "factor_evaluations",
+            "emergency_model_turns",
+        }
+        if not isinstance(safety, dict) or not safety_keys.issubset(safety):
+            errors.append("agentic.safety is incomplete")
+        else:
+            for key in {"invalid_action_threshold", "factor_evaluations"}:
+                if not isinstance(safety[key], int) or safety[key] < 1:
+                    errors.append(f"agentic.safety.{key} must be a positive integer")
+            emergency_turns = safety["emergency_model_turns"]
+            if emergency_turns is not None and (
+                not isinstance(emergency_turns, int) or emergency_turns < 1
+            ):
+                errors.append(
+                    "agentic.safety.emergency_model_turns must be null or a positive integer"
+                )
+        checkpoints = agentic["checkpoints"]
+        if (
+            not isinstance(checkpoints, list)
+            or any(not isinstance(value, int) or value < 1 for value in checkpoints)
+            or checkpoints != sorted(set(checkpoints))
+        ):
+            errors.append("agentic.checkpoints must be sorted unique positive integers")
+        elif isinstance(safety, dict) and isinstance(safety.get("factor_evaluations"), int):
+            if checkpoints and checkpoints[-1] > safety["factor_evaluations"]:
+                errors.append("agentic checkpoints cannot exceed the evaluation ceiling")
+        if (
+            not isinstance(self.search.get("max_submissions"), int)
+            or self.search["max_submissions"] < 1
+        ):
+            errors.append("search.max_submissions must be a positive integer")
+        for key in ("recent_event_window", "plateau_advisory_valid_evaluations"):
+            if not isinstance(agentic[key], int) or agentic[key] < 1:
+                errors.append(f"agentic.{key} must be a positive integer")
+        outcome = self.raw.get("outcome_verification")
+        if not isinstance(outcome, dict):
+            errors.append("agentic_goal_loop requires outcome_verification")
+        else:
+            try:
+                if outcome.get("role") != "hidden_oos":
+                    errors.append("outcome_verification.role must be hidden_oos")
+                outcome_start = date.fromisoformat(str(outcome["start"]))
+                outcome_end = date.fromisoformat(str(outcome["end"]))
+                if outcome_start > outcome_end:
+                    errors.append("outcome_verification start must not exceed end")
+                if any(outcome_start <= search_end for _, search_end in search_periods):
+                    errors.append("outcome_verification must start after every search window")
+                data_start = date.fromisoformat(str(self.raw["data"]["start"]))
+                data_end = date.fromisoformat(str(self.raw["data"]["end"]))
+                if any(start < data_start or end > data_end for start, end in search_periods):
+                    errors.append("search windows must stay inside the declared data period")
+                if outcome_start < data_start or outcome_end > data_end:
+                    errors.append("outcome_verification must stay inside the declared data period")
+            except (KeyError, TypeError, ValueError):
+                errors.append("outcome_verification requires ISO start/end dates")
+        if not self.raw.get("extensions", {}).get("controlled_oos"):
+            errors.append("agentic_goal_loop requires extensions.controlled_oos=true")
         return errors
 
     def assert_valid(self, *, require_paths: bool = False) -> None:

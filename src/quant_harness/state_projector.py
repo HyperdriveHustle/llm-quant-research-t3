@@ -52,7 +52,7 @@ class StateProjector:
             "allowed_actions": allowed_actions,
             "allowed_window_aliases": list(self.config.allowed_window_aliases),
             "hypotheses": copy.deepcopy(list(state.hypotheses.values())),
-            "top_factors": copy.deepcopy(factors[:20]),
+            "top_factors": [self._factor_view(factor) for factor in factors[:20]],
             "recent_experiments": copy.deepcopy(recent_experiments),
             "rejected_or_suspended_hypotheses": copy.deepcopy(
                 [
@@ -85,6 +85,14 @@ class StateProjector:
             if "ic" in metrics:
                 values.append(float(metrics["ic"]))
         return max(values, default=float("-inf"))
+
+    @staticmethod
+    def _factor_view(factor: dict[str, Any]) -> dict[str, Any]:
+        record = copy.deepcopy(factor)
+        experiment_ids = list(record.pop("experiment_ids", []))
+        record["recent_experiment_ids"] = experiment_ids[-5:]
+        record["experiment_count"] = len(experiment_ids)
+        return record
 
     @staticmethod
     def _evaluations_since_best_improvement(state: ResearchState) -> int:

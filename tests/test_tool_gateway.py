@@ -367,3 +367,109 @@ def test_failed_evaluation_cannot_be_submission_evidence(tmp_path):
 
     assert execution.status == "rejected"
     assert execution.protocol_flags[0]["code"] == "FAILED_EVIDENCE"
+
+
+def test_ffo_exception_becomes_failed_evidence_instead_of_aborting(tmp_path):
+    class BrokenFFO(FakeFFO):
+        def evaluate(self, expression, **kwargs):
+            raise RuntimeError("failure at /private/secret/runtime/file.py")
+
+    ids, gw, ledger, state = initialized(tmp_path)
+    gw.search_client = BrokenFFO()
+    factor_id = next(iter(state.factors))
+    hypothesis_id = next(iter(state.hypotheses))
+    evaluate = action_parser().parse(
+        {
+            "schema_version": "0.2",
+            "action_id": "a2",
+            "action": "evaluate",
+            "reason": "collect evidence",
+            "hypothesis_id": hypothesis_id,
+            "expected_observation": "success",
+            "decision_rule": "stop after failure",
+            "arguments": {
+                "factor_ids": [factor_id],
+                "window_alias": "search_full",
+            },
+        }
+    )
+
+    execution = gw.execute(evaluate, state, ModelUsage())
+    state = apply_execution(ledger, state, execution)
+    experiment = next(iter(state.experiments.values()))
+
+    assert experiment["success"] is False
+    assert experiment["metrics"] == {}
+    assert "/private/secret" not in experiment["error"]
+    assert "[redacted-path]" in experiment["error"]
+
+
+def submission_state():
+    state = ResearchState(task_id="task", task_manifest_hash="manifest")
+    state.hypotheses = {
+        "hyp_seed_pool": {"status": "reference"},
+        "hyp_1": {"status": "active"},
+    }
+    state.factors = {
+        "seed_1": {
+            "factor_id": "seed_1",
+            "hypothesis_id": "hyp_seed_pool",
+            "status": "evaluated",
+        },
+        "factor_1": {
+            "factor_id": "factor_1",
+            "hypothesis_id": "hyp_1",
+            "status": "evaluated",
+        },
+    }
+    state.experiments = {
+        "exp_seed": {"factor_id": "seed_1", "success": True},
+        "exp_candidate": {"factor_id": "factor_1", "success": True},
+    }
+    return state
+
+
+def stop_action(*, factor_ids, evidence_ids):
+    return action_parser().parse(
+        {
+            "schema_version": "0.2",
+            "action_id": "stop_1",
+            "action": "stop",
+            "reason": "freeze conclusion",
+            "arguments": {
+                "mode": "submit",
+                "factor_ids": factor_ids,
+                "evidence_ids": evidence_ids,
+                "limitations": [],
+            },
+        }
+    )
+
+
+def test_submit_may_cite_successful_seed_baseline_as_auxiliary_evidence():
+    gw = gateway(IDs())
+
+    execution = gw.execute(
+        stop_action(
+            factor_ids=["factor_1"],
+            evidence_ids=["exp_candidate", "exp_seed"],
+        ),
+        submission_state(),
+        ModelUsage(),
+    )
+
+    assert execution.status == "ok"
+    assert execution.event_type == "stop"
+
+
+def test_reference_seed_cannot_be_submitted_as_new_discovery():
+    gw = gateway(IDs())
+
+    execution = gw.execute(
+        stop_action(factor_ids=["seed_1"], evidence_ids=["exp_seed"]),
+        submission_state(),
+        ModelUsage(),
+    )
+
+    assert execution.status == "rejected"
+    assert execution.protocol_flags[0]["code"] == "REFERENCE_SEED_SUBMISSION"

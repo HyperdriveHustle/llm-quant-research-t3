@@ -155,6 +155,7 @@ class StateReducer:
                 factor.setdefault("metrics_by_window", {})[experiment["window_alias"]] = (
                     copy.deepcopy(experiment["metrics"])
                 )
+                factor.setdefault("experiment_ids", []).append(experiment_id)
                 factor["status"] = "evaluated"
             updated.trial_counts["factor_evaluations"] += len(experiments)
             updated.last_observation = copy.deepcopy(payload["observation"])
@@ -216,4 +217,5 @@ class StateReducer:
             record["status"] = "valid"
             record["created_version"] = state_version
             record["metrics_by_window"] = {}
+            record["experiment_ids"] = []
             state.factors[factor_id] = record

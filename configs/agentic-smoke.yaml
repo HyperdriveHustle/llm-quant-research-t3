@@ -1,0 +1,89 @@
+schema_version: "0.2"
+profile: "agentic_goal_loop"
+variant_id: "agentic_smoke_not_research_result"
+paper_result: false
+random_seed: 0
+
+upstream:
+  repository: "https://github.com/CityU-MLO/AlphaBench"
+  paper_runtime: "third_party/AlphaBench-paper"
+  full_commit_sha: "3a880599358fc81d8b3e0ec89419a7912a5dc694"
+  engine: "qlib"
+  assay_enabled: false
+
+data:
+  provider_uri: "data/raw/qlib/releases/2026-07-29/cn_data"
+  snapshot_manifest: "data/snapshots/qlib-cn-manifest.json"
+  source:
+    type: "investment_data_release"
+    release_tag: "2026-07-29"
+    manifest_url: "https://github.com/chenditc/investment_data/releases/download/2026-07-29/qlib_bin.manifest.json"
+    archive_url: "https://github.com/chenditc/investment_data/releases/download/2026-07-29/qlib_bin.tar.gz"
+  market: "csi300"
+  instruments: "CSI300"
+  benchmark: "SH000300"
+  frequency: "day"
+  label: "close_return"
+  start: "2023-01-01"
+  end: "2023-06-30"
+
+model:
+  provider: "ark_coding_openai"
+  model_id: "glm-5.3"
+  api_mode: "responses"
+  api_key_env: "ARK_API_KEY"
+  base_url_env: "ARK_BASE_URL"
+  temperature: 0.2
+  timeout_seconds: 600
+
+search:
+  algorithm: "agentic"
+  seed_collections: ["kbar", "price"]
+  exclude_variable: "vwap"
+  max_seeds: 3
+  max_submissions: 1
+
+agentic:
+  task_id: "agentic-smoke-csi300"
+  goal: "Autonomously establish at least one Alpha158 seed baseline, test an interpretable non-reference OHLCV factor, and submit at most one candidate only when its successful search_full IC exceeds the best evaluated seed IC and IC/RankIC have the predicted sign; otherwise conclude no_discovery."
+  allowed_actions: ["propose", "evaluate", "refine", "pivot", "stop"]
+  window_aliases:
+    search_full: ["2023-01-01", "2023-03-31"]
+    search_early: ["2023-01-01", "2023-02-15"]
+    search_late: ["2023-02-16", "2023-03-31"]
+  check_period: ["2023-01-03", "2023-01-17"]
+  max_candidates_per_action: 4
+  safety:
+    invalid_action_threshold: 5
+    factor_evaluations: 5
+    emergency_model_turns: 12
+  checkpoints: [1, 3, 5]
+  recent_event_window: 20
+  plateau_advisory_valid_evaluations: 3
+
+outcome_verification:
+  role: "hidden_oos"
+  start: "2023-04-01"
+  end: "2023-06-30"
+
+paper_metrics:
+  effective_ic_threshold: 0.03
+
+runtime:
+  run_root: "runs"
+  artifact_root: "artifacts"
+  trajectory_root: "trajectories"
+  search:
+    host: "127.0.0.1"
+    port: 19883
+    cache_path: "runs/runtime/agentic-search-smoke/factor_cache.sqlite"
+  verifier:
+    host: "127.0.0.1"
+    port: 19884
+    cache_path: "runs/runtime/agentic-verifier-smoke/factor_cache.sqlite"
+
+extensions:
+  controlled_oos: true
+  agentic_goal_loop: true
+  long_horizon_checkpoints: true
+  null_world: false

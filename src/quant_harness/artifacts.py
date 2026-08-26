@@ -20,6 +20,28 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def harness_source_sha256(project_root: Path) -> str:
+    """Hash executable Harness Python and protocol schemas in path-stable order."""
+    roots_and_patterns = (
+        (project_root / "src" / "quant_harness", "*.py"),
+        (project_root / "schemas", "*.json"),
+    )
+    files = sorted(
+        path
+        for root, pattern in roots_and_patterns
+        if root.exists()
+        for path in root.rglob(pattern)
+        if path.is_file()
+    )
+    digest = hashlib.sha256()
+    for path in files:
+        digest.update(path.relative_to(project_root).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def canonical_json(payload: Any) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
@@ -53,9 +75,10 @@ def freeze_submission(
     factors: list[dict[str, Any]],
     hashes: dict[str, str],
     search_summary: dict[str, Any],
+    schema_version: str = "0.1",
 ) -> FrozenSubmission:
     body = {
-        "schema_version": "0.1",
+        "schema_version": schema_version,
         "run_id": run_id,
         "profile": profile,
         "factors": factors,

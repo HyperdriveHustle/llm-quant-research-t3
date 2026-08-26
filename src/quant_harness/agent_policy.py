@@ -82,6 +82,7 @@ stop arguments = {"mode":"submit|no_discovery","factor_ids":[],
             usage=ModelUsage(
                 input_tokens=response.input_tokens,
                 output_tokens=response.output_tokens,
+                model_calls=response.attempts,
             ),
             response_id=response.response_id,
         )

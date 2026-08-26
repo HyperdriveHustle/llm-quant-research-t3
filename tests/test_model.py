@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+import urllib.error
+
+import pytest
 
 from quant_harness.model import (
     ArkModelClient,
+    ModelError,
     extract_response_text,
     extract_usage,
 )
@@ -75,3 +79,59 @@ def test_model_call_logs_no_api_key(monkeypatch, tmp_path):
     text = logs[0].read_text()
     assert "test-secret-key" not in text
     assert captured["authorization"] == "Bearer test-secret-key"
+
+
+def test_model_response_counts_transport_attempts(monkeypatch):
+    attempts = 0
+
+    def flaky_urlopen(request, timeout):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise urllib.error.URLError("temporary")
+        return FakeHTTPResponse(
+            {
+                "output_text": "ok",
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            }
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", flaky_urlopen)
+    monkeypatch.setattr("time.sleep", lambda seconds: None)
+    client = ArkModelClient(
+        base_url="https://example.test/v3",
+        api_key="test-secret-key",
+        model="glm-5.3",
+    )
+
+    response = client.generate(
+        prompt="test",
+        system_prompt="test",
+        temperature=0,
+        max_attempts=2,
+    )
+
+    assert response.attempts == 2
+
+
+def test_model_error_counts_failed_transport_attempts(monkeypatch):
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda *args, **kwargs: (_ for _ in ()).throw(urllib.error.URLError("temporary")),
+    )
+    monkeypatch.setattr("time.sleep", lambda seconds: None)
+    client = ArkModelClient(
+        base_url="https://example.test/v3",
+        api_key="test-secret-key",
+        model="glm-5.3",
+    )
+
+    with pytest.raises(ModelError) as exc:
+        client.generate(
+            prompt="test",
+            system_prompt="test",
+            temperature=0,
+            max_attempts=2,
+        )
+
+    assert exc.value.attempts == 2

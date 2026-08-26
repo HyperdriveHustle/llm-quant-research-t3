@@ -13,12 +13,14 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from .artifacts import FrozenSubmission, file_sha256, freeze_submission
+from .artifacts import FrozenSubmission, file_sha256, freeze_submission, harness_source_sha256
 from .config import HarnessConfig
 from .env import temporary_environ
 from .ffo import FFOClient
 from .paper_metrics import summarize_factors
 from .reporting import build_paper_search_report
+from .runtime_paths import prepare_run_directory
+from .seed_pool import load_alpha158_seeds
 from .trajectory import TrajectoryWriter
 
 
@@ -57,6 +59,24 @@ def paper_import_context(runtime: Path) -> Iterator[None]:
             sys.path.remove(runtime_str)
 
 
+def verify_paper_runtime(config: HarnessConfig) -> None:
+    runtime = config.upstream_runtime
+    if not runtime.exists():
+        raise PaperRuntimeError(f"missing paper runtime: {runtime}")
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=runtime,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    actual = result.stdout.strip()
+    if actual != config.upstream_commit:
+        raise PaperRuntimeError(
+            f"paper runtime commit mismatch: {actual} != {config.upstream_commit}"
+        )
+
+
 class PaperRunner:
     def __init__(
         self,
@@ -75,26 +95,12 @@ class PaperRunner:
         self.trajectory = TrajectoryWriter(self.trajectory_path)
 
     def verify_upstream(self) -> None:
-        runtime = self.config.upstream_runtime
-        if not runtime.exists():
-            raise PaperRuntimeError(f"missing paper runtime: {runtime}")
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=runtime,
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-        actual = result.stdout.strip()
-        if actual != self.config.upstream_commit:
-            raise PaperRuntimeError(
-                f"paper runtime commit mismatch: {actual} != {self.config.upstream_commit}"
-            )
+        verify_paper_runtime(self.config)
 
     def run(self) -> FrozenSubmission:
         self.config.assert_valid(require_paths=True)
         self.verify_upstream()
-        self.run_dir.mkdir(parents=True, exist_ok=False)
+        prepare_run_directory(self.run_dir)
         model_log_dir = self.run_dir / "model_calls"
         runtime_env = {
             "HARNESS_RUNTIME_ROLE": "agent",
@@ -162,23 +168,7 @@ class PaperRunner:
         return submission
 
     def _load_seeds(self) -> list[dict[str, Any]]:
-        module = importlib.import_module("factors.lib.alpha158")
-        _, compiled = module.load_factors_alpha158(
-            exclude_var=self.config.search.get("exclude_variable"),
-            collection=self.config.search["seed_collections"],
-        )
-        seeds = [
-            {
-                "name": item["name"],
-                "expression": item.get("qlib_expression_default") or item.get("qlib_expression"),
-            }
-            for item in compiled.values()
-        ]
-        max_seeds = self.config.search.get("max_seeds")
-        if max_seeds is not None:
-            seeds = seeds[: int(max_seeds)]
-        if not seeds:
-            raise PaperRuntimeError("Alpha158 seed pool is empty")
+        seeds = load_alpha158_seeds(self.config.search)
         self.trajectory.append(
             "seed_loaded",
             {
@@ -350,5 +340,6 @@ class PaperRunner:
             "data_manifest_sha256": (
                 file_sha256(manifest) if manifest.exists() else "MISSING_UNVERIFIED"
             ),
+            "harness_source_sha256": harness_source_sha256(self.config.project_root),
             "trajectory_sha256_before_freeze": trajectory_hash,
         }
