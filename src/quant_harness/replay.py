@@ -18,14 +18,21 @@ def replay_action_logs(
     call_logs: list[Path],
     max_output_tokens: int,
     output_path: Path,
+    timeout_seconds: int | None = None,
 ) -> dict[str, Any]:
     if max_output_tokens < 1:
         raise ValueError("max_output_tokens must be positive")
+    if timeout_seconds is not None and timeout_seconds < 1:
+        raise ValueError("timeout_seconds must be positive")
     parser = ActionParser(config.project_root / "schemas" / "agent_action.schema.json")
     client = ArkModelClient.from_env(
         model=config.model["model_id"],
         api_mode=config.model["api_mode"],
-        timeout=int(config.model["timeout_seconds"]),
+        timeout=(
+            int(config.model["timeout_seconds"])
+            if timeout_seconds is None
+            else int(timeout_seconds)
+        ),
     )
     model_log_dir = output_path.parent / "model_calls"
     rows = []
@@ -84,18 +91,26 @@ def replay_action_logs(
                 )
             row["elapsed_seconds"] = time.time() - started
             rows.append(row)
-            atomic_json_write(output_path, _report(max_output_tokens, rows))
-    report = _report(max_output_tokens, rows)
+            atomic_json_write(
+                output_path,
+                _report(max_output_tokens, timeout_seconds, rows),
+            )
+    report = _report(max_output_tokens, timeout_seconds, rows)
     atomic_json_write(output_path, report)
     return report
 
 
-def _report(max_output_tokens: int, rows: list[dict[str, Any]]) -> dict[str, Any]:
+def _report(
+    max_output_tokens: int,
+    timeout_seconds: int | None,
+    rows: list[dict[str, Any]],
+) -> dict[str, Any]:
     return {
         "schema_version": "0.1",
         "created_at": utc_now(),
         "experiment": "historical_action_replay_with_larger_output_budget",
         "max_output_tokens": max_output_tokens,
+        "timeout_seconds": timeout_seconds,
         "call_count": len(rows),
         "completed_count": sum(row["state"] == "completed" for row in rows),
         "schema_valid_count": sum(row.get("schema_valid") is True for row in rows),

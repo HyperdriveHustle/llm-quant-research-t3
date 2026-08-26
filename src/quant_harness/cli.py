@@ -189,6 +189,7 @@ def main() -> None:
     replay.add_argument("--config", required=True, type=Path)
     replay.add_argument("--call-log", required=True, action="append", type=Path)
     replay.add_argument("--max-output-tokens", required=True, type=int)
+    replay.add_argument("--timeout-seconds", type=int)
     replay.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     try:
@@ -209,6 +210,7 @@ def main() -> None:
                 call_logs=[path.resolve() for path in args.call_log],
                 max_output_tokens=args.max_output_tokens,
                 output_path=args.output.resolve(),
+                timeout_seconds=args.timeout_seconds,
             )
             summary = {key: value for key, value in report.items() if key != "calls"}
             summary["output_path"] = str(args.output.resolve())

@@ -61,8 +61,10 @@ def test_replay_validates_action_with_larger_output_budget(monkeypatch, tmp_path
         call_logs=[call_log],
         max_output_tokens=65536,
         output_path=output_path,
+        timeout_seconds=1200,
     )
 
     assert report["schema_valid_count"] == 1
+    assert report["timeout_seconds"] == 1200
     assert report["at_requested_limit_count"] == 0
     assert json.loads(output_path.read_text())["calls"][0]["response_status"] == "completed"
