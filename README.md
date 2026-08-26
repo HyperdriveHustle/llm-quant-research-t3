@@ -55,6 +55,7 @@ v0.1 回答：在 AlphaBench T3 的 seed、搜索算法、过滤和指标下，G
 | [Harness](docs/HARNESS.md) | 组件、接口、Agent/Verifier 隔离和扩展 profile |
 | [实验协议](experiments/README.md) | Paper Core、独立验证和关闭的扩展实验 |
 | [长时实验分组](experiments/LONG_RUN_PLAN.md) | CoT/ToT/EA、OOS、深度研究、Null 与 Agent Loop |
+| [三任务真实 Agent Suite](experiments/agentic-real-3/README.md) | 三个 GLM-5.3 长程任务、成功 gate、后台运行和过程统计 |
 | [Trajectory](docs/TRAJECTORY.md) | 上游原生输出、事件流和派生数据 |
 | [Agentic Loop 设计](docs/AGENTIC_LOOP_DESIGN.md) | 模型自主 propose/evaluate/refine/pivot/stop 的 v0.2 设计 |
 
@@ -101,6 +102,13 @@ v0.1 回答：在 AlphaBench T3 的 seed、搜索算法、过滤和指标下，G
     # v0.2 自主研究 smoke：搜索期 2023Q1，隐藏 OOS 2023Q2
     ./.venv/bin/qharness doctor --config configs/agentic-smoke.yaml --require-data
     ./.venv/bin/qharness run --config configs/agentic-smoke.yaml
+
+    # 串行后台启动三个真实长程 Agent Loop
+    ./.venv/bin/qharness start-suite \
+      --suite experiments/agentic-real-3/suite.yaml
+
+    ./.venv/bin/qharness suite-status \
+      --suite-run-dir runs/suites/<suite-run-id>
 
 论文兼容参数使用：
 

@@ -60,7 +60,7 @@
 - [x] Download supports resumable Range requests and detects truncation.
 - [x] Ruff passes.
 - [x] Python compileall passes.
-- [x] 60 tests pass.
+- [x] 64 tests pass.
 - [x] Measured unit-test coverage is 74%; real end-to-end paths are additionally exercised.
 
 ## Real Smoke Evidence
@@ -75,6 +75,8 @@
 - [x] Search evidence recomputed with zero metric mismatch.
 - [x] Hidden OOS exposed search overfit rather than feeding results back to the Agent.
 - [x] Verifier separates integrity `verification_status` from `research_outcome.status`.
+- [x] Three real GLM-5.3 task configs pass config/data/runtime doctor.
+- [x] Background suite launcher, sequential worker, live status and aggregate analysis are tested.
 
 ## Extensions
 
