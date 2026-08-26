@@ -60,7 +60,7 @@
 - [x] Download supports resumable Range requests and detects truncation.
 - [x] Ruff passes.
 - [x] Python compileall passes.
-- [x] 64 tests pass.
+- [x] 68 tests pass.
 - [x] Measured unit-test coverage is 74%; real end-to-end paths are additionally exercised.
 
 ## Real Smoke Evidence
@@ -77,6 +77,10 @@
 - [x] Verifier separates integrity `verification_status` from `research_outcome.status`.
 - [x] Three real GLM-5.3 task configs pass config/data/runtime doctor.
 - [x] Background suite launcher, sequential worker, live status and aggregate analysis are tested.
+- [x] Parallel suite launches three process-isolated tasks with distinct FFO ports and caches.
+- [x] Paper-compatible strict 1% NaN gate remains active in all three real tasks.
+- [x] All three real-task rolling-factor preflights pass on the frozen Qlib snapshot.
+- [x] Candidate-registration stall is bounded independently of token or evaluator-call budgets.
 
 ## Extensions
 

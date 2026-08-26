@@ -103,7 +103,11 @@ v0.1 回答：在 AlphaBench T3 的 seed、搜索算法、过滤和指标下，G
     ./.venv/bin/qharness doctor --config configs/agentic-smoke.yaml --require-data
     ./.venv/bin/qharness run --config configs/agentic-smoke.yaml
 
-    # 串行后台启动三个真实长程 Agent Loop
+    # 先验证真实数据可接受代表性 rolling 因子
+    ./.venv/bin/qharness agentic-preflight \
+      --config configs/real-t1-trend.yaml
+
+    # 并行后台启动三个隔离的真实长程 Agent Loop
     ./.venv/bin/qharness start-suite \
       --suite experiments/agentic-real-3/suite.yaml
 
