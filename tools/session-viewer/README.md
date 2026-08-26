@@ -18,7 +18,7 @@ python3 tools/session-viewer/server.py \
 - 模型输入按 `system instructions + Projected ResearchState` 原样显示；
 - 展示模型原始 response text、token、耗时、完成状态和 content block 类型；
 - 展示 schema 后的 action、Harness observation、错误与 IC/RankIC/ICIR；
-- 正在运行的任务每 5 秒自动刷新；
+- 默认不自动刷新，避免重置阅读位置；需要时点击“立即刷新”；
 - 所有敏感名称字段由 server 端过滤，服务默认仅绑定 `127.0.0.1`。
 
 ## 验证
