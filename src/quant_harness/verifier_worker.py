@@ -69,6 +69,52 @@ def _generalization_row(
     return {"factor": factor_name, "metrics": diagnostics}
 
 
+def _research_outcome_assessment(
+    *,
+    is_agentic: bool,
+    verified_factors: list[dict],
+    seed_baseline: dict | None,
+    threshold: float,
+) -> dict:
+    if not is_agentic:
+        return {"status": "not_applicable", "factors": []}
+    if not verified_factors:
+        return {"status": "no_submission_to_assess", "factors": []}
+    best_seed_ic = None if seed_baseline is None else seed_baseline["best_hidden_oos_ic"]
+    rows = []
+    for factor in verified_factors:
+        metrics = factor.get("metrics") or {}
+        direction = int(factor.get("direction", 1))
+        signed_ic = direction * float(metrics["ic"]) if "ic" in metrics else None
+        signed_rank_ic = direction * float(metrics["rank_ic"]) if "rank_ic" in metrics else None
+        meets_ic = signed_ic is not None and signed_ic > threshold
+        rank_sign_ok = signed_rank_ic is not None and signed_rank_ic > 0
+        beats_seed = signed_ic is not None and best_seed_ic is not None and signed_ic > best_seed_ic
+        supported = bool(factor["success"] and meets_ic and rank_sign_ok and beats_seed)
+        rows.append(
+            {
+                "name": factor["name"],
+                "success": factor["success"],
+                "direction_adjusted_ic": signed_ic,
+                "direction_adjusted_rank_ic": signed_rank_ic,
+                "meets_effective_ic_threshold": meets_ic,
+                "rank_ic_sign_matches": rank_sign_ok,
+                "beats_best_hidden_seed_ic": beats_seed,
+                "supported": supported,
+            }
+        )
+    return {
+        "status": (
+            "supported_hidden_oos"
+            if any(row["supported"] for row in rows)
+            else "not_supported_hidden_oos"
+        ),
+        "effective_ic_threshold": threshold,
+        "best_hidden_seed_ic": best_seed_ic,
+        "factors": rows,
+    }
+
+
 def verify(
     *,
     config_path: Path,
@@ -242,6 +288,12 @@ def verify(
             ],
         }
     threshold = float(config.raw["paper_metrics"]["effective_ic_threshold"])
+    research_outcome = _research_outcome_assessment(
+        is_agentic=is_agentic,
+        verified_factors=verified_factors,
+        seed_baseline=seed_baseline,
+        threshold=threshold,
+    )
     recomputation_success = all(row["success"] for row in search_recomputations)
     outcome_success = all(row["success"] for row in verified_factors)
     report = {
@@ -281,6 +333,7 @@ def verify(
                 ),
                 "generalization_diagnostics": generalization,
                 "seed_baseline": seed_baseline,
+                "research_outcome": research_outcome,
             }
         )
     report_path.parent.mkdir(parents=True, exist_ok=True)

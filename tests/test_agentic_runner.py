@@ -294,6 +294,8 @@ def test_independent_verifier_recomputes_search_and_hidden_oos(monkeypatch, tmp_
     assert report["generalization_diagnostics"][0]["metrics"]["ic"][
         "retention_ratio"
     ] == pytest.approx(0.2)
+    assert report["research_outcome"]["status"] == "not_supported_hidden_oos"
+    assert report["research_outcome"]["factors"][0]["supported"] is False
 
     (project / "schemas" / "changed-after-freeze.json").write_text("{}", encoding="utf-8")
     with pytest.raises(ArtifactError, match="input hashes differ"):

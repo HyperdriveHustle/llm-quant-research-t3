@@ -74,6 +74,7 @@
 - [x] Agentic GLM-5.3 smoke completed Search FFO → freeze → protocol verifier → hidden OOS.
 - [x] Search evidence recomputed with zero metric mismatch.
 - [x] Hidden OOS exposed search overfit rather than feeding results back to the Agent.
+- [x] Verifier separates integrity `verification_status` from `research_outcome.status`.
 
 ## Extensions
 
@@ -83,3 +84,4 @@
 - [x] All extensions are disabled in paper-compatible config.
 - [ ] Null/falsification-world task groups remain future experiment work.
 - [ ] Exact-prefix OOS replay and cross-run checkpoint aggregation remain future analysis work.
+- [ ] Algebraic factor-equivalence/novelty gating remains future verifier work.
