@@ -122,6 +122,7 @@ class ProtocolVerifier:
         decision_types = {"propose", "evaluate", "refine", "pivot", "stop"}
         valid_actions = 0
         invalid_turns = 0
+        incomplete_turns = 0
         for event in events:
             payload = event.payload
             raw_action = payload.get("model_action")
@@ -148,11 +149,29 @@ class ProtocolVerifier:
                     raise ProtocolVerificationError(
                         "invalid action has neither raw output nor structured errors"
                     )
-        return {"valid_actions": valid_actions, "invalid_turns": invalid_turns}
+            elif event.event_type == "model_output_incomplete":
+                incomplete_turns += 1
+                if not payload.get("errors"):
+                    raise ProtocolVerificationError(
+                        "incomplete model output lacks structured errors"
+                    )
+        return {
+            "valid_actions": valid_actions,
+            "invalid_turns": invalid_turns,
+            "incomplete_turns": incomplete_turns,
+        }
 
     @staticmethod
     def _verify_tool_result_envelopes(events: list) -> None:
-        result_types = {"propose", "evaluate", "refine", "pivot", "stop", "invalid_action"}
+        result_types = {
+            "propose",
+            "evaluate",
+            "refine",
+            "pivot",
+            "stop",
+            "invalid_action",
+            "model_output_incomplete",
+        }
         for event in events:
             if event.event_type not in result_types:
                 continue

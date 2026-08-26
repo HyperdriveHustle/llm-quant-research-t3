@@ -38,6 +38,7 @@ class ResearchState:
             "duplicates": 0,
             "candidate_registration_failures": 0,
             "consecutive_empty_candidate_actions": 0,
+            "model_output_incomplete": 0,
         }
     )
     checkpoints: list[dict[str, Any]] = field(default_factory=list)
@@ -128,6 +129,12 @@ class StateReducer:
             updated.trial_counts["invalid_actions"] += 1
             updated.last_observation = {
                 "status": "rejected",
+                "errors": copy.deepcopy(payload.get("errors") or []),
+            }
+        elif event_type == "model_output_incomplete":
+            updated.trial_counts["model_output_incomplete"] += 1
+            updated.last_observation = {
+                "status": "model_output_incomplete",
                 "errors": copy.deepcopy(payload.get("errors") or []),
             }
         elif event_type == "propose":

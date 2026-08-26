@@ -190,6 +190,12 @@ def main() -> None:
     replay.add_argument("--call-log", required=True, action="append", type=Path)
     replay.add_argument("--max-output-tokens", required=True, type=int)
     replay.add_argument("--timeout-seconds", type=int)
+    replay.add_argument("--structured-output", action="store_true")
+    replay.add_argument("--thinking-disabled", action="store_true")
+    replay.add_argument(
+        "--api-mode",
+        choices=("responses", "chat_completions"),
+    )
     replay.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     try:
@@ -211,6 +217,9 @@ def main() -> None:
                 max_output_tokens=args.max_output_tokens,
                 output_path=args.output.resolve(),
                 timeout_seconds=args.timeout_seconds,
+                structured_output=args.structured_output,
+                thinking_disabled=args.thinking_disabled,
+                api_mode_override=args.api_mode,
             )
             summary = {key: value for key, value in report.items() if key != "calls"}
             summary["output_path"] = str(args.output.resolve())

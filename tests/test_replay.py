@@ -62,6 +62,9 @@ def test_replay_validates_action_with_larger_output_budget(monkeypatch, tmp_path
         max_output_tokens=65536,
         output_path=output_path,
         timeout_seconds=1200,
+        structured_output=False,
+        thinking_disabled=False,
+        api_mode_override=None,
     )
 
     assert report["schema_valid_count"] == 1

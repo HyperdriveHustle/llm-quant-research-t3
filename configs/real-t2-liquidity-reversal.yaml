@@ -34,7 +34,12 @@ model:
   api_key_env: "ARK_API_KEY"
   base_url_env: "ARK_BASE_URL"
   temperature: 0.3
-  timeout_seconds: 600
+  timeout_seconds: 1200
+  max_output_tokens: 65536
+  fallback_max_output_tokens: 8192
+  fallback_thinking_disabled: false
+  fallback_enabled: false
+  structured_output: false
 
 search:
   algorithm: "agentic"
@@ -45,7 +50,7 @@ search:
 
 agentic:
   task_id: "real-t2-liquidity-reversal"
-  goal: "Autonomously research one interpretable CSI300 volatility, liquidity or volume-conditioned reversal factor using OHLCV only. First establish seed baselines. A submission requires successful search_early, search_late and search_full evidence with direction-adjusted IC at least 0.012 and positive RankIC on every window, search_full IC above the best seed and at least 0.025, and a mechanism that is not merely the sign inversion of a seed. Use ablations to determine whether price, range and relative-volume components contribute. Submit at most one supported factor or conclude no_discovery with the strongest falsifying evidence."
+  goal: "Continuously research until one interpretable CSI300 volatility, liquidity or volume-conditioned reversal factor satisfies the complete search objective. Establish all seed baselines, explore distinct mechanisms, and use component ablations to determine whether price, range and relative-volume terms contribute. A submission requires successful search_early, search_late and search_full evidence with direction-adjusted IC at least 0.012 and positive RankIC on every window, plus search_full IC above the best seed and at least 0.025. Do not request no_discovery before finalization_required at the evaluation safety ceiling. Submit immediately once objective_progress.goal_achieved is true."
   allowed_actions: ["propose", "evaluate", "refine", "pivot", "stop"]
   window_aliases:
     search_full: ["2020-01-01", "2023-12-31"]
@@ -54,13 +59,13 @@ agentic:
   check_period: ["2020-01-01", "2023-12-31"]
   max_candidates_per_action: 4
   safety:
-    invalid_action_threshold: 20
-    factor_evaluations: 48
+    invalid_action_threshold: 40
+    factor_evaluations: 96
     emergency_model_turns: null
-    registration_stall_actions: 10
-  checkpoints: [5, 10, 20, 32, 48]
-  recent_event_window: 24
-  plateau_advisory_valid_evaluations: 12
+    registration_stall_actions: 20
+  checkpoints: [5, 10, 20, 40, 64, 96]
+  recent_event_window: 12
+  plateau_advisory_valid_evaluations: 24
 
 outcome_verification:
   role: "hidden_oos"

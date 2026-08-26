@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .actions import ActionParser, ActionValidationError
-from .agent_policy import AgentPolicy
+from .agent_policy import AgentPolicy, PolicyTurn
 from .artifacts import FrozenSubmission, file_sha256, freeze_submission, harness_source_sha256
 from .env import temporary_environ
 from .ledger import ResearchLedger
@@ -141,6 +141,9 @@ class AgenticSearchRunner:
                     if self._invalid_threshold_reached(state):
                         state = self._force_stop(state, "invalid action threshold reached")
                     continue
+                if turn.output_limit_hit:
+                    state = self._append_incomplete_policy_turn(state, turn)
+                    continue
                 try:
                     action = self.action_parser.parse(turn.action_text)
                 except ActionValidationError as exc:
@@ -248,6 +251,35 @@ class AgenticSearchRunner:
                 }
                 for error in errors
             ],
+        )
+        return self._append_execution(state, action_id, execution)
+
+    def _append_incomplete_policy_turn(
+        self,
+        state: ResearchState,
+        turn: PolicyTurn,
+    ) -> ResearchState:
+        action_id = f"incomplete_{uuid.uuid4().hex}"
+        error = {
+            "code": "MODEL_OUTPUT_INCOMPLETE",
+            "message": (
+                f"status={turn.response_status}; reason={turn.incomplete_reason}; "
+                f"fallback_used={turn.serialization_fallback_used}"
+            ),
+        }
+        execution = GatewayExecution(
+            event_type="model_output_incomplete",
+            event_payload={
+                "action_id": action_id,
+                "usage": turn.usage.to_event(),
+                "errors": [error],
+                **self._raw_output_audit(turn.action_text),
+                "response_id": turn.response_id,
+            },
+            status="rejected",
+            observations={"status": "model_output_incomplete", "errors": [error]},
+            registered_ids=[],
+            protocol_flags=[error],
         )
         return self._append_execution(state, action_id, execution)
 

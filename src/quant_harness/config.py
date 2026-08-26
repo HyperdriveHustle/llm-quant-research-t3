@@ -142,6 +142,11 @@ class HarnessConfig:
             not isinstance(max_output_tokens, int) or max_output_tokens < 1
         ):
             errors.append("model.max_output_tokens must be a positive integer or null")
+        fallback_tokens = model.get("fallback_max_output_tokens")
+        if fallback_tokens is not None and (
+            not isinstance(fallback_tokens, int) or fallback_tokens < 1
+        ):
+            errors.append("model.fallback_max_output_tokens must be a positive integer or null")
         for key in ("api_key_env", "base_url_env"):
             if not re.fullmatch(r"[A-Z][A-Z0-9_]*", str(model.get(key, ""))):
                 errors.append(f"model.{key} must name an environment variable")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from .model import ArkModelClient
 from .tool_gateway import ModelUsage
@@ -13,6 +13,10 @@ class PolicyTurn:
     action_text: str
     usage: ModelUsage
     response_id: str | None = None
+    response_status: str | None = None
+    incomplete_reason: str | None = None
+    output_limit_hit: bool = False
+    serialization_fallback_used: bool = False
 
 
 class AgentPolicy(Protocol):
@@ -37,8 +41,8 @@ Evaluation truth comes only from Harness observations.
 Reference factors under hypothesis_id hyp_seed_pool may be evaluated and used as
 refine parents, but cannot be submitted unchanged. A submit must cite successful
 Experiment IDs for every submitted non-reference Factor ID.
-You may continue for a long trajectory; stop when evidence supports submission
-or no supported discovery remains.
+Continue research until objective_progress.goal_achieved is true or the Harness
+reports finalization_required. Do not request no_discovery early.
 
 The common envelope is:
 {"schema_version":"0.2","action_id":"unique-id","action":"...",
@@ -67,27 +71,76 @@ stop arguments = {"mode":"submit|no_discovery","factor_ids":[],
         *,
         temperature: float,
         max_output_tokens: int | None = None,
+        action_schema: dict[str, Any] | None = None,
+        fallback_max_output_tokens: int = 8192,
+        fallback_thinking_disabled: bool = True,
+        fallback_enabled: bool = False,
     ):
         self.client = client
         self.temperature = float(temperature)
         self.max_output_tokens = max_output_tokens
+        self.action_schema = action_schema
+        self.fallback_max_output_tokens = int(fallback_max_output_tokens)
+        self.fallback_thinking_disabled = bool(fallback_thinking_disabled)
+        self.fallback_enabled = bool(fallback_enabled)
 
     def next_action(self, state_view: dict) -> PolicyTurn:
+        prompt = json.dumps(state_view, ensure_ascii=False, separators=(",", ":"))
         response = self.client.generate(
             system_prompt=self.SYSTEM_PROMPT,
-            prompt=json.dumps(state_view, ensure_ascii=False, separators=(",", ":")),
+            prompt=prompt,
             temperature=self.temperature,
             json_output=True,
             max_output_tokens=self.max_output_tokens,
+            json_schema=self.action_schema,
         )
+        fallback_used = False
+        total_input = response.input_tokens
+        total_output = response.output_tokens
+        total_calls = response.attempts
+        output_limit_hit = bool(
+            response.status == "incomplete"
+            or response.incomplete_reason
+            or self.max_output_tokens is not None
+            and response.output_tokens >= self.max_output_tokens
+        )
+        if output_limit_hit and self.fallback_enabled:
+            fallback_used = True
+            fallback = self.client.generate(
+                system_prompt=(
+                    self.SYSTEM_PROMPT
+                    + "\nThe prior deep-thinking call exhausted its output allowance. "
+                    "Re-decide from the supplied state and serialize exactly one concise action."
+                ),
+                prompt=prompt,
+                temperature=0.0,
+                json_output=True,
+                max_output_tokens=self.fallback_max_output_tokens,
+                thinking=({"type": "disabled"} if self.fallback_thinking_disabled else None),
+                json_schema=self.action_schema,
+            )
+            response = fallback
+            total_input += fallback.input_tokens
+            total_output += fallback.output_tokens
+            total_calls += fallback.attempts
         return PolicyTurn(
             action_text=response.text,
             usage=ModelUsage(
-                input_tokens=response.input_tokens,
-                output_tokens=response.output_tokens,
-                model_calls=response.attempts,
+                input_tokens=total_input,
+                output_tokens=total_output,
+                model_calls=total_calls,
             ),
             response_id=response.response_id,
+            response_status=response.status,
+            incomplete_reason=response.incomplete_reason,
+            output_limit_hit=bool(
+                response.status == "incomplete"
+                or response.incomplete_reason
+                or self.fallback_max_output_tokens is not None
+                and fallback_used
+                and response.output_tokens >= self.fallback_max_output_tokens
+            ),
+            serialization_fallback_used=fallback_used,
         )
 
 

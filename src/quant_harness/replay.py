@@ -19,6 +19,9 @@ def replay_action_logs(
     max_output_tokens: int,
     output_path: Path,
     timeout_seconds: int | None = None,
+    structured_output: bool = False,
+    thinking_disabled: bool = False,
+    api_mode_override: str | None = None,
 ) -> dict[str, Any]:
     if max_output_tokens < 1:
         raise ValueError("max_output_tokens must be positive")
@@ -27,7 +30,7 @@ def replay_action_logs(
     parser = ActionParser(config.project_root / "schemas" / "agent_action.schema.json")
     client = ArkModelClient.from_env(
         model=config.model["model_id"],
-        api_mode=config.model["api_mode"],
+        api_mode=api_mode_override or config.model["api_mode"],
         timeout=(
             int(config.model["timeout_seconds"])
             if timeout_seconds is None
@@ -57,6 +60,8 @@ def replay_action_logs(
                     json_output=True,
                     max_attempts=1,
                     max_output_tokens=max_output_tokens,
+                    thinking=({"type": "disabled"} if thinking_disabled else None),
+                    json_schema=(parser.schema if structured_output else None),
                 )
                 schema_errors = []
                 try:
@@ -93,9 +98,23 @@ def replay_action_logs(
             rows.append(row)
             atomic_json_write(
                 output_path,
-                _report(max_output_tokens, timeout_seconds, rows),
+                _report(
+                    max_output_tokens,
+                    timeout_seconds,
+                    structured_output,
+                    thinking_disabled,
+                    api_mode_override,
+                    rows,
+                ),
             )
-    report = _report(max_output_tokens, timeout_seconds, rows)
+    report = _report(
+        max_output_tokens,
+        timeout_seconds,
+        structured_output,
+        thinking_disabled,
+        api_mode_override,
+        rows,
+    )
     atomic_json_write(output_path, report)
     return report
 
@@ -103,6 +122,9 @@ def replay_action_logs(
 def _report(
     max_output_tokens: int,
     timeout_seconds: int | None,
+    structured_output: bool,
+    thinking_disabled: bool,
+    api_mode_override: str | None,
     rows: list[dict[str, Any]],
 ) -> dict[str, Any]:
     return {
@@ -111,6 +133,9 @@ def _report(
         "experiment": "historical_action_replay_with_larger_output_budget",
         "max_output_tokens": max_output_tokens,
         "timeout_seconds": timeout_seconds,
+        "structured_output": structured_output,
+        "thinking_disabled": thinking_disabled,
+        "api_mode": api_mode_override,
         "call_count": len(rows),
         "completed_count": sum(row["state"] == "completed" for row in rows),
         "schema_valid_count": sum(row.get("schema_valid") is True for row in rows),

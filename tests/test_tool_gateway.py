@@ -227,6 +227,37 @@ def test_no_discovery_is_first_class_terminal(tmp_path):
     assert state.submitted_evidence_ids == [evidence_id]
 
 
+def test_objective_task_rejects_early_no_discovery(tmp_path):
+    ids, gw, ledger, state = initialized(tmp_path)
+    gw.experiment_objective = {
+        "required_search_windows": ["search_full"],
+        "min_direction_adjusted_search_ic": 0.03,
+        "min_direction_adjusted_search_rank_ic": 0.0,
+        "require_beats_best_search_seed": False,
+        "min_submissions": 1,
+        "min_distinct_hypotheses": 1,
+    }
+    stop = action_parser().parse(
+        {
+            "schema_version": "0.2",
+            "action_id": "a2",
+            "action": "stop",
+            "reason": "stop too early",
+            "arguments": {
+                "mode": "no_discovery",
+                "factor_ids": [],
+                "evidence_ids": [],
+                "limitations": [],
+            },
+        }
+    )
+
+    execution = gw.execute(stop, state, ModelUsage())
+
+    assert execution.status == "rejected"
+    assert execution.protocol_flags[0]["code"] == "GOAL_NOT_ACHIEVED_CONTINUE_RESEARCH"
+
+
 def test_invalid_and_duplicate_candidates_are_not_registered(tmp_path):
     ids = IDs()
     gw = gateway(ids)

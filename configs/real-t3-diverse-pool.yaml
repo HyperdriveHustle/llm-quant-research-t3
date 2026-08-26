@@ -34,7 +34,12 @@ model:
   api_key_env: "ARK_API_KEY"
   base_url_env: "ARK_BASE_URL"
   temperature: 0.3
-  timeout_seconds: 600
+  timeout_seconds: 1200
+  max_output_tokens: 65536
+  fallback_max_output_tokens: 8192
+  fallback_thinking_disabled: false
+  fallback_enabled: false
+  structured_output: false
 
 search:
   algorithm: "agentic"
@@ -45,7 +50,7 @@ search:
 
 agentic:
   task_id: "real-t3-diverse-factor-pool"
-  goal: "Build a two-factor CSI300 OHLCV research pool through autonomous long-horizon research. The two submitted factors must come from distinct economic mechanisms, each have successful evidence on search_early, search_late and search_full, direction-adjusted IC at least 0.01 with positive RankIC on every window, and search_full IC above the best seed. Use pivot and ablation evidence rather than submitting trivial sign, scale or lookback duplicates. Submit exactly two only if both are supported and expected to be complementary; otherwise conclude no_discovery. Hidden Verifier will require both to retain positive IC/RankIC and mean absolute output correlation no greater than 0.70."
+  goal: "Continuously research until a two-factor CSI300 OHLCV pool satisfies the complete search objective. The two factors must come from distinct economic mechanisms; each needs successful search_early, search_late and search_full evidence, direction-adjusted IC at least 0.01 with positive RankIC on every window, and search_full IC above the best seed. Use broad hypothesis exploration, pivots and ablations rather than trivial sign, scale or lookback duplicates. Do not request no_discovery before finalization_required at the evaluation safety ceiling. Submit exactly two immediately once objective_progress.goal_achieved is true; the hidden Verifier will then test OOS IC/RankIC and mean absolute correlation no greater than 0.70."
   allowed_actions: ["propose", "evaluate", "refine", "pivot", "stop"]
   window_aliases:
     search_full: ["2020-01-01", "2023-12-31"]
@@ -54,13 +59,13 @@ agentic:
   check_period: ["2020-01-01", "2023-12-31"]
   max_candidates_per_action: 4
   safety:
-    invalid_action_threshold: 20
-    factor_evaluations: 64
+    invalid_action_threshold: 40
+    factor_evaluations: 128
     emergency_model_turns: null
-    registration_stall_actions: 12
-  checkpoints: [5, 10, 20, 32, 48, 64]
-  recent_event_window: 28
-  plateau_advisory_valid_evaluations: 16
+    registration_stall_actions: 24
+  checkpoints: [5, 10, 20, 40, 64, 96, 128]
+  recent_event_window: 12
+  plateau_advisory_valid_evaluations: 32
 
 outcome_verification:
   role: "hidden_oos"

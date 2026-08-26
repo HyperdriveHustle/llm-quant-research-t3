@@ -32,6 +32,7 @@ def build_agentic_runner(
     }
     with paper_import_context(config.upstream_runtime):
         seeds = as_agentic_seed_records(load_alpha158_seeds(config.search))
+    action_parser = ActionParser(action_schema_path(config.project_root))
     model_client = ArkModelClient.from_env(
         model=config.model["model_id"],
         api_mode=config.model["api_mode"],
@@ -45,6 +46,12 @@ def build_agentic_runner(
             if config.model.get("max_output_tokens") is None
             else int(config.model["max_output_tokens"])
         ),
+        action_schema=(
+            action_parser.schema if bool(config.model.get("structured_output", False)) else None
+        ),
+        fallback_max_output_tokens=int(config.model.get("fallback_max_output_tokens", 8192)),
+        fallback_thinking_disabled=bool(config.model.get("fallback_thinking_disabled", True)),
+        fallback_enabled=bool(config.model.get("fallback_enabled", False)),
     )
     safety = agentic["safety"]
     manifest_path = config.project_root / config.raw["data"]["snapshot_manifest"]
@@ -65,7 +72,7 @@ def build_agentic_runner(
             registration_stall_actions=int(safety.get("registration_stall_actions", 10)),
         ),
         policy=policy,
-        action_parser=ActionParser(action_schema_path(config.project_root)),
+        action_parser=action_parser,
         gateway=ToolGateway(
             search_client=search_client,
             market=str(config.raw["data"]["market"]),
@@ -79,6 +86,7 @@ def build_agentic_runner(
             max_candidates_per_action=int(agentic["max_candidates_per_action"]),
             max_submissions=int(config.search["max_submissions"]),
             safety_factor_evaluations=int(safety["factor_evaluations"]),
+            experiment_objective=config.raw.get("experiment_objective"),
         ),
         projector=StateProjector(
             ProjectionConfig(
@@ -91,6 +99,7 @@ def build_agentic_runner(
                 ),
                 max_candidates_per_action=int(agentic["max_candidates_per_action"]),
                 registration_stall_actions=int(safety.get("registration_stall_actions", 10)),
+                experiment_objective=config.raw.get("experiment_objective"),
             )
         ),
         project_root=config.project_root,

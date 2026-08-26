@@ -205,7 +205,11 @@ def test_scripted_agent_completes_replayable_loop(tmp_path):
     assert submission.body["schema_version"] == "0.2"
     assert submission.body["factors"][0]["factor_id"] == "factor_2"
     assert submission.body["factors"][0]["search_evidence"]["experiment_id"] == "exp_2"
-    assert protocol["model_action_audit"] == {"valid_actions": 5, "invalid_turns": 0}
+    assert protocol["model_action_audit"] == {
+        "valid_actions": 5,
+        "invalid_turns": 0,
+        "incomplete_turns": 0,
+    }
     assert protocol["trial_counts"]["factor_evaluations"] == 2
     assert protocol["pre_freeze_ledger_head_hash"] == submission.body["hashes"]["ledger_head_hash"]
     assert [

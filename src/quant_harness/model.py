@@ -34,6 +34,8 @@ class ModelResponse:
     output_item_types: tuple[str, ...] = ()
     content_block_types: tuple[str, ...] = ()
     requested_max_output_tokens: int | None = None
+    thinking_type: str | None = None
+    structured_output: bool = False
 
 
 def _sha256(text: str) -> str:
@@ -50,6 +52,8 @@ def extract_response_text(payload: dict[str, Any]) -> str:
             continue
         if item.get("type") in {"output_text", "text"} and isinstance(item.get("text"), str):
             text_blocks.append(item["text"])
+        if item.get("type") == "function_call" and isinstance(item.get("arguments"), str):
+            text_blocks.append(item["arguments"])
         for content in item.get("content", []) or []:
             if not isinstance(content, dict):
                 continue
@@ -153,6 +157,8 @@ class ArkModelClient:
         json_output: bool = False,
         max_attempts: int = 3,
         max_output_tokens: int | None = None,
+        thinking: dict[str, Any] | None = None,
+        json_schema: dict[str, Any] | None = None,
     ) -> ModelResponse:
         if max_attempts < 1:
             raise ValueError("max_attempts must be positive")
@@ -168,6 +174,17 @@ class ArkModelClient:
             }
             if max_output_tokens is not None:
                 payload["max_output_tokens"] = int(max_output_tokens)
+            if thinking is not None:
+                payload["thinking"] = thinking
+            if json_schema is not None:
+                payload["text"] = {
+                    "format": {
+                        "type": "json_schema",
+                        "name": "agent_action",
+                        "strict": True,
+                        "schema": json_schema,
+                    }
+                }
         else:
             endpoint = f"{self.base_url}/chat/completions"
             payload = {
@@ -183,6 +200,17 @@ class ArkModelClient:
                 payload["response_format"] = {"type": "json_object"}
             if max_output_tokens is not None:
                 payload["max_tokens"] = int(max_output_tokens)
+            if thinking is not None:
+                payload["thinking"] = thinking
+            if json_schema is not None:
+                payload["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "agent_action",
+                        "strict": True,
+                        "schema": json_schema,
+                    },
+                }
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(
             endpoint,
@@ -214,6 +242,8 @@ class ArkModelClient:
                     output_item_types=metadata["output_item_types"],
                     content_block_types=metadata["content_block_types"],
                     requested_max_output_tokens=max_output_tokens,
+                    thinking_type=(None if thinking is None else str(thinking.get("type"))),
+                    structured_output=json_schema is not None,
                 )
                 self._record_call(
                     prompt=prompt,
@@ -263,6 +293,8 @@ class ArkModelClient:
             "output_item_types": list(response.output_item_types),
             "content_block_types": list(response.content_block_types),
             "requested_max_output_tokens": response.requested_max_output_tokens,
+            "thinking_type": response.thinking_type,
+            "structured_output": response.structured_output,
         }
         log_dir = os.getenv("HARNESS_MODEL_LOG_DIR")
         if log_dir:
@@ -294,6 +326,8 @@ def generate_text(
     timeout: int = 180,
     return_raw: bool = False,
     max_output_tokens: int | None = None,
+    thinking: dict[str, Any] | None = None,
+    json_schema: dict[str, Any] | None = None,
 ) -> str | dict[str, Any]:
     client = ArkModelClient.from_env(
         model=model,
@@ -308,5 +342,7 @@ def generate_text(
         temperature=temperature,
         json_output=json_output,
         max_output_tokens=max_output_tokens,
+        thinking=thinking,
+        json_schema=json_schema,
     )
     return result.raw if return_raw else result.text

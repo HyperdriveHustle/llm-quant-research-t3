@@ -7,6 +7,7 @@ from typing import Any, Callable
 
 from .actions import ResearchAction
 from .ffo import FactorResult, FFOClient
+from .objective import evaluate_search_objective
 from .state import ResearchState
 
 
@@ -52,6 +53,7 @@ class ToolGateway:
         max_candidates_per_action: int,
         max_submissions: int,
         safety_factor_evaluations: int,
+        experiment_objective: dict[str, Any] | None = None,
         id_factory: Callable[[str], str] = default_id_factory,
     ):
         if search_client.role != "search":
@@ -65,6 +67,7 @@ class ToolGateway:
         self.max_candidates_per_action = int(max_candidates_per_action)
         self.max_submissions = int(max_submissions)
         self.safety_factor_evaluations = int(safety_factor_evaluations)
+        self.experiment_objective = experiment_objective
         self.id_factory = id_factory
 
     def execute(
@@ -401,12 +404,36 @@ class ToolGateway:
                     "FAILED_EVIDENCE",
                     ", ".join(failed_evidence),
                 )
+            objective_error = self._submission_objective_error(state, factor_ids)
+            if objective_error:
+                return self._reject(
+                    action,
+                    usage,
+                    "SEARCH_OBJECTIVE_NOT_MET",
+                    objective_error,
+                )
         elif factor_ids:
             return self._reject(
                 action,
                 usage,
                 "NO_DISCOVERY_SUBMITS_FACTORS",
                 "no_discovery must not submit factors",
+            )
+        elif (
+            self.experiment_objective
+            and state.trial_counts["factor_evaluations"] < self.safety_factor_evaluations
+        ):
+            progress = evaluate_search_objective(state, self.experiment_objective)
+            remaining = self.safety_factor_evaluations - state.trial_counts["factor_evaluations"]
+            return self._reject(
+                action,
+                usage,
+                "GOAL_NOT_ACHIEVED_CONTINUE_RESEARCH",
+                (
+                    f"no_discovery is disabled before the evaluation safety ceiling; "
+                    f"remaining={remaining}; "
+                    f"unmet={progress['unmet_requirements']}"
+                ),
             )
         observation = {
             "status": "terminal",
@@ -432,6 +459,29 @@ class ToolGateway:
             protocol_flags=[],
             terminal=True,
         )
+
+    def _submission_objective_error(
+        self,
+        state: ResearchState,
+        factor_ids: list[str],
+    ) -> str | None:
+        if not self.experiment_objective:
+            return None
+        progress = evaluate_search_objective(state, self.experiment_objective)
+        passing = {row["factor_id"]: row for row in progress["factors"] if row["passes"]}
+        missing = [factor_id for factor_id in factor_ids if factor_id not in passing]
+        if missing:
+            return f"submitted factors do not pass all search gates: {missing}"
+        minimum = int(progress["minimum_submissions"])
+        if len(factor_ids) < minimum:
+            return f"submission requires at least {minimum} factors"
+        minimum_hypotheses = int(progress["minimum_distinct_hypotheses"])
+        hypothesis_count = len(
+            {state.factors[factor_id]["hypothesis_id"] for factor_id in factor_ids}
+        )
+        if hypothesis_count < minimum_hypotheses:
+            return f"submission requires at least {minimum_hypotheses} distinct hypotheses"
+        return None
 
     def _register_candidates(
         self,

@@ -111,6 +111,8 @@ def test_model_call_logs_no_api_key(monkeypatch, tmp_path):
         temperature=0,
         json_output=True,
         max_output_tokens=65536,
+        thinking={"type": "disabled"},
+        json_schema={"type": "object", "properties": {}},
     )
     assert result.text == '{"ok":true}'
     logs = list(tmp_path.glob("*.json"))
@@ -119,6 +121,8 @@ def test_model_call_logs_no_api_key(monkeypatch, tmp_path):
     assert "test-secret-key" not in text
     assert captured["authorization"] == "Bearer test-secret-key"
     assert captured["payload"]["max_output_tokens"] == 65536
+    assert captured["payload"]["thinking"] == {"type": "disabled"}
+    assert captured["payload"]["text"]["format"]["type"] == "json_schema"
     assert json.loads(logs[0].read_text())["requested_max_output_tokens"] == 65536
 
 
