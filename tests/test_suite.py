@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from pathlib import Path
 from types import SimpleNamespace
 
 from quant_harness.config import HarnessConfig, load_config
@@ -20,7 +21,7 @@ def test_real_suite_has_three_valid_orthogonal_tasks():
     definition = load_suite("experiments/agentic-real-3/suite.yaml")
     configs = [load_config(task.config_path) for task in definition.tasks]
 
-    assert definition.execution == "sequential"
+    assert definition.execution == "parallel"
     assert len(configs) == 3
     assert all(config.profile == "agentic_goal_loop" for config in configs)
     assert all(config.raw["model"]["model_id"] == "glm-5.3" for config in configs)
@@ -29,6 +30,14 @@ def test_real_suite_has_three_valid_orthogonal_tasks():
     )
     assert len({config.search_endpoint.port for config in configs}) == 3
     assert len({config.verifier_endpoint.port for config in configs}) == 3
+    assert {
+        tuple(config.raw["agentic"]["window_aliases"]["search_full"]) for config in configs
+    } == {("2020-01-01", "2023-12-31")}
+    assert {
+        (config.raw["outcome_verification"]["start"], config.raw["outcome_verification"]["end"])
+        for config in configs
+    } == {("2024-01-01", "2025-12-31")}
+    assert all(config.raw["candidate_validation"]["policy"] == "strict" for config in configs)
     assert [config.raw["experiment_objective"]["objective_id"] for config in configs] == [
         "cross-regime-trend-discovery",
         "liquidity-reversal-discovery",
@@ -160,6 +169,92 @@ def test_suite_worker_runs_tasks_sequentially_and_aggregates(monkeypatch, tmp_pa
     ]
     assert status["aggregate"]["total_model_calls"] == 6
     assert status["aggregate"]["total_logical_tokens"] == 300
+
+
+def test_parallel_suite_spawns_three_isolated_task_processes(monkeypatch, tmp_path):
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='test'\n", encoding="utf-8")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "configs").mkdir()
+    suite_dir = tmp_path / "experiments" / "suite"
+    suite_dir.mkdir(parents=True)
+    tasks = []
+    for index in range(3):
+        config_path = tmp_path / "configs" / f"task-{index}.yaml"
+        config_path.write_text("profile: test\n", encoding="utf-8")
+        tasks.append(
+            {
+                "task_id": f"parallel-{index}",
+                "title": f"Task {index}",
+                "capability": "test",
+                "config": f"configs/task-{index}.yaml",
+            }
+        )
+    suite_path = suite_dir / "suite.yaml"
+    import yaml
+
+    suite_path.write_text(
+        yaml.safe_dump({"suite_id": "parallel-suite", "execution": "parallel", "tasks": tasks}),
+        encoding="utf-8",
+    )
+    definition = load_suite(suite_path)
+    run_dir = suite_run_directory(definition, "parallel-run")
+    atomic_json_write(
+        run_dir / "status.json",
+        _initial_status(definition, "parallel-run"),
+    )
+    commands = []
+
+    class CompletedProcess:
+        returncode = 0
+
+        @staticmethod
+        def poll():
+            return 0
+
+    def fake_popen(command, **kwargs):
+        commands.append(command)
+        analysis_path = Path(command[command.index("--analysis") + 1])
+        result_path = Path(command[command.index("--result") + 1])
+        run_id = command[command.index("--run-id") + 1]
+        analysis = {
+            "task_id": run_id,
+            "terminal_status": "no_discovery",
+            "trial_counts": {
+                "model_calls": 1,
+                "logical_tokens": 10,
+                "factor_evaluations": 1,
+            },
+            "model_turns": 1,
+            "elapsed_seconds_agent": 1.0,
+            "best_direction_adjusted_search_ic": 0.0,
+            "objective_assessment": {"discovery_achieved": False},
+            "verifier": {"verification_status": "passed"},
+        }
+        analysis_path.write_text(json.dumps(analysis), encoding="utf-8")
+        result_path.write_text(
+            json.dumps(
+                {
+                    "state": "completed",
+                    "finished_at": "now",
+                    "duration_seconds": 1.0,
+                    "submission_path": "submission.json",
+                    "verifier_report_path": "report.json",
+                    "analysis_path": str(analysis_path),
+                    "error": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return CompletedProcess()
+
+    monkeypatch.setattr("quant_harness.suite.subprocess.Popen", fake_popen)
+
+    status = run_suite_worker(suite_path, "parallel-run")
+
+    assert len(commands) == 3
+    assert all("quant_harness.suite_task" in command for command in commands)
+    assert [task["state"] for task in status["tasks"]] == ["completed"] * 3
+    assert status["aggregate"]["total_model_calls"] == 3
 
 
 def test_live_progress_reads_model_tokens_evaluations_and_elapsed(tmp_path):

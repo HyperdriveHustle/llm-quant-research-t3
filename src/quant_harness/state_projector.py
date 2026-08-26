@@ -14,6 +14,8 @@ class ProjectionConfig:
     recent_event_window: int
     max_factor_evaluations: int
     plateau_advisory_valid_evaluations: int
+    max_candidates_per_action: int = 32
+    registration_stall_actions: int = 10
 
 
 class StateProjector:
@@ -66,12 +68,25 @@ class StateProjector:
                 "factor_evaluation_ceiling": self.config.max_factor_evaluations,
                 "factor_evaluations_remaining": evaluations_remaining,
                 "finalization_required": evaluations_remaining == 0,
+                "registration_stall_threshold": self.config.registration_stall_actions,
+            },
+            "protocol_limits": {
+                "max_candidates_per_action": self.config.max_candidates_per_action,
             },
             "plateau_advisory": {
                 "evaluations_since_best_ic_improvement": evaluations_since_improvement,
                 "threshold": self.config.plateau_advisory_valid_evaluations,
                 "active": evaluations_since_improvement
                 >= self.config.plateau_advisory_valid_evaluations,
+                "forces_stop": False,
+            },
+            "registration_stall_advisory": {
+                "consecutive_empty_candidate_actions": state.trial_counts[
+                    "consecutive_empty_candidate_actions"
+                ],
+                "threshold": self.config.registration_stall_actions,
+                "active": state.trial_counts["consecutive_empty_candidate_actions"]
+                >= max(1, self.config.registration_stall_actions // 2),
                 "forces_stop": False,
             },
             "checkpoints": copy.deepcopy(state.checkpoints),

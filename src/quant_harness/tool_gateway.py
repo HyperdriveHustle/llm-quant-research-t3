@@ -474,10 +474,15 @@ class ToolGateway:
                     end=self.check_period[1],
                 )
                 if check.get("success") is not True:
+                    error_type = str(check.get("error_type", ""))
                     rejected.append(
                         {
                             "name": candidate["name"],
-                            "code": "DSL_CHECK_FAILED",
+                            "code": (
+                                "DATA_COVERAGE_FAILED"
+                                if error_type in {"HIGH_NAN_RATIO", "INSUFFICIENT_COVERAGE"}
+                                else "DSL_CHECK_FAILED"
+                            ),
                             "message": self._safe_error_message(str(check)),
                         }
                     )
@@ -501,6 +506,15 @@ class ToolGateway:
                     "direction": int(candidate["direction"]),
                     "rationale": candidate.get("rationale", ""),
                     "edit_type": edit_type,
+                    "validation": {
+                        key: check[key]
+                        for key in (
+                            "nan_ratio",
+                            "valid_date_fraction",
+                            "minimum_date_coverage",
+                        )
+                        if key in check
+                    },
                 }
             )
         return registered, duplicates, rejected

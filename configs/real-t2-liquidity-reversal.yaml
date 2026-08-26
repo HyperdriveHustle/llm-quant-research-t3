@@ -24,8 +24,8 @@ data:
   benchmark: "SH000300"
   frequency: "day"
   label: "close_return"
-  start: "2015-01-01"
-  end: "2023-12-31"
+  start: "2020-01-01"
+  end: "2025-12-31"
 
 model:
   provider: "ark_coding_openai"
@@ -48,23 +48,27 @@ agentic:
   goal: "Autonomously research one interpretable CSI300 volatility, liquidity or volume-conditioned reversal factor using OHLCV only. First establish seed baselines. A submission requires successful search_early, search_late and search_full evidence with direction-adjusted IC at least 0.012 and positive RankIC on every window, search_full IC above the best seed and at least 0.025, and a mechanism that is not merely the sign inversion of a seed. Use ablations to determine whether price, range and relative-volume components contribute. Submit at most one supported factor or conclude no_discovery with the strongest falsifying evidence."
   allowed_actions: ["propose", "evaluate", "refine", "pivot", "stop"]
   window_aliases:
-    search_full: ["2015-01-01", "2020-12-31"]
-    search_early: ["2015-01-01", "2017-12-31"]
-    search_late: ["2018-01-01", "2020-12-31"]
-  check_period: ["2015-01-05", "2015-02-27"]
+    search_full: ["2020-01-01", "2023-12-31"]
+    search_early: ["2020-01-01", "2021-12-31"]
+    search_late: ["2022-01-01", "2023-12-31"]
+  check_period: ["2020-01-01", "2023-12-31"]
   max_candidates_per_action: 4
   safety:
     invalid_action_threshold: 20
     factor_evaluations: 48
     emergency_model_turns: null
+    registration_stall_actions: 10
   checkpoints: [5, 10, 20, 32, 48]
   recent_event_window: 24
   plateau_advisory_valid_evaluations: 12
 
 outcome_verification:
   role: "hidden_oos"
-  start: "2021-01-01"
-  end: "2023-12-31"
+  start: "2024-01-01"
+  end: "2025-12-31"
+
+candidate_validation:
+  policy: "strict"
 
 experiment_objective:
   objective_id: "liquidity-reversal-discovery"

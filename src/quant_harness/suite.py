@@ -87,8 +87,8 @@ def load_suite(path: str | Path) -> SuiteDefinition:
     if len(task_ids) != len(set(task_ids)):
         raise SuiteError("suite task IDs must be unique")
     execution = str(raw.get("execution", "sequential"))
-    if execution != "sequential":
-        raise SuiteError("only sequential execution is supported")
+    if execution not in {"sequential", "parallel"}:
+        raise SuiteError("suite execution must be sequential or parallel")
     return SuiteDefinition(
         path=suite_path,
         project_root=project_root,
@@ -159,6 +159,7 @@ def _initial_status(definition: SuiteDefinition, suite_run_id: str) -> dict[str,
         "finished_at": None,
         "worker_pid": None,
         "current_task_id": None,
+        "current_task_ids": [],
         "tasks": [
             {
                 "task_id": task.task_id,
@@ -173,6 +174,7 @@ def _initial_status(definition: SuiteDefinition, suite_run_id: str) -> dict[str,
                 "submission_path": None,
                 "verifier_report_path": None,
                 "analysis_path": None,
+                "task_log_path": None,
                 "error": None,
             }
             for task in definition.tasks
@@ -212,6 +214,31 @@ def run_suite_worker(suite_path: Path, suite_run_id: str) -> dict[str, Any]:
         }
     )
     atomic_json_write(status_path, status)
+    if definition.execution == "parallel":
+        analyses = _run_tasks_parallel(definition, suite_run_id, run_dir, status, status_path)
+    else:
+        analyses = _run_tasks_sequential(definition, suite_run_id, run_dir, status, status_path)
+    status["current_task_id"] = None
+    status["current_task_ids"] = []
+    status["finished_at"] = utc_now()
+    status["state"] = (
+        "completed"
+        if all(task["state"] == "completed" for task in status["tasks"])
+        else "completed_with_errors"
+    )
+    status["aggregate"] = _aggregate_analyses(analyses)
+    atomic_json_write(run_dir / "suite-summary.json", status["aggregate"])
+    atomic_json_write(status_path, status)
+    return status
+
+
+def _run_tasks_sequential(
+    definition: SuiteDefinition,
+    suite_run_id: str,
+    run_dir: Path,
+    status: dict[str, Any],
+    status_path: Path,
+) -> list[dict[str, Any]]:
     analyses = []
     for index, task in enumerate(definition.tasks):
         task_status = status["tasks"][index]
@@ -225,6 +252,7 @@ def run_suite_worker(suite_path: Path, suite_run_id: str) -> dict[str, Any]:
             }
         )
         status["current_task_id"] = task.task_id
+        status["current_task_ids"] = [task.task_id]
         atomic_json_write(status_path, status)
         try:
             config = load_config(task.config_path)
@@ -260,20 +288,126 @@ def run_suite_worker(suite_path: Path, suite_run_id: str) -> dict[str, Any]:
             task_status["finished_at"] = utc_now()
             task_status["duration_seconds"] = time.time() - started
             atomic_json_write(status_path, status)
+    return analyses
+
+
+def _run_tasks_parallel(
+    definition: SuiteDefinition,
+    suite_run_id: str,
+    run_dir: Path,
+    status: dict[str, Any],
+    status_path: Path,
+) -> list[dict[str, Any]]:
+    analyses = []
+    processes: dict[int, dict[str, Any]] = {}
     status["current_task_id"] = None
-    status["finished_at"] = utc_now()
-    status["state"] = (
-        "completed"
-        if all(task["state"] == "completed" for task in status["tasks"])
-        else "completed_with_errors"
-    )
-    status["aggregate"] = _aggregate_analyses(analyses)
-    atomic_json_write(run_dir / "suite-summary.json", status["aggregate"])
+    status["current_task_ids"] = [task.task_id for task in definition.tasks]
+    for index, task in enumerate(definition.tasks):
+        task_status = status["tasks"][index]
+        run_id = f"run_{suite_run_id}_{task.task_id}"
+        analysis_path = run_dir / f"{task.task_id}-analysis.json"
+        result_path = run_dir / f"{task.task_id}-result.json"
+        log_path = run_dir / f"{task.task_id}.log"
+        task_status.update(
+            {
+                "state": "running",
+                "run_id": run_id,
+                "started_at": utc_now(),
+                "task_log_path": str(log_path),
+            }
+        )
+        started = time.time()
+        log_handle = None
+        try:
+            log_handle = log_path.open("ab")
+            process = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "quant_harness.suite_task",
+                    "--config",
+                    str(task.config_path),
+                    "--run-id",
+                    run_id,
+                    "--analysis",
+                    str(analysis_path),
+                    "--result",
+                    str(result_path),
+                ],
+                cwd=definition.project_root,
+                env=dict(os.environ),
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+            )
+            processes[index] = {
+                "process": process,
+                "log_handle": log_handle,
+                "result_path": result_path,
+                "analysis_path": analysis_path,
+                "started": started,
+            }
+        except Exception as exc:
+            if log_handle is not None:
+                log_handle.close()
+            task_status.update(
+                {
+                    "state": "failed",
+                    "finished_at": utc_now(),
+                    "duration_seconds": time.time() - started,
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+    status["current_task_ids"] = [
+        task["task_id"] for task in status["tasks"] if task["state"] == "running"
+    ]
     atomic_json_write(status_path, status)
-    return status
+    while processes:
+        for index, runtime in list(processes.items()):
+            process = runtime["process"]
+            if process.poll() is None:
+                continue
+            runtime["log_handle"].close()
+            task_status = status["tasks"][index]
+            result_path = runtime["result_path"]
+            if result_path.exists():
+                result = json.loads(result_path.read_text(encoding="utf-8"))
+                task_status.update(
+                    {
+                        key: result.get(key)
+                        for key in (
+                            "state",
+                            "finished_at",
+                            "duration_seconds",
+                            "submission_path",
+                            "verifier_report_path",
+                            "analysis_path",
+                            "error",
+                        )
+                    }
+                )
+            else:
+                task_status.update(
+                    {
+                        "state": "failed",
+                        "finished_at": utc_now(),
+                        "duration_seconds": time.time() - runtime["started"],
+                        "error": f"task process exited {process.returncode} without result",
+                    }
+                )
+            if task_status["state"] == "completed" and runtime["analysis_path"].exists():
+                analyses.append(json.loads(runtime["analysis_path"].read_text(encoding="utf-8")))
+            status["current_task_ids"] = [
+                task["task_id"] for task in status["tasks"] if task["state"] == "running"
+            ]
+            del processes[index]
+            atomic_json_write(status_path, status)
+        if processes:
+            time.sleep(2)
+    return analyses
 
 
 def _aggregate_analyses(analyses: list[dict[str, Any]]) -> dict[str, Any]:
+    analyses = sorted(analyses, key=lambda analysis: analysis["task_id"])
     return {
         "completed_task_count": len(analyses),
         "discovery_achieved_count": sum(
@@ -313,11 +447,16 @@ def read_suite_status(suite_run_dir: Path) -> dict[str, Any]:
             "worker_pid"
         )
     status["worker_alive"] = _pid_alive(worker_pid)
-    current_task_id = status.get("current_task_id")
-    if current_task_id:
-        task = next(row for row in status["tasks"] if row["task_id"] == current_task_id)
-        config = load_config(Path(task["config_path"]))
-        status["live_progress"] = live_run_progress(config, task["run_id"])
+    current_task_ids = status.get("current_task_ids") or []
+    if not current_task_ids and status.get("current_task_id"):
+        current_task_ids = [status["current_task_id"]]
+    if current_task_ids:
+        progress = []
+        for task_id in current_task_ids:
+            task = next(row for row in status["tasks"] if row["task_id"] == task_id)
+            config = load_config(Path(task["config_path"]))
+            progress.append(live_run_progress(config, task["run_id"]))
+        status["live_progress"] = progress[0] if len(progress) == 1 else progress
     else:
         status["live_progress"] = None
     return status

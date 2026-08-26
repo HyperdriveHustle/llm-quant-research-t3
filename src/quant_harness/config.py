@@ -228,6 +228,11 @@ class HarnessConfig:
                 errors.append(
                     "agentic.safety.emergency_model_turns must be null or a positive integer"
                 )
+            registration_stall = safety.get("registration_stall_actions", 10)
+            if not isinstance(registration_stall, int) or registration_stall < 1:
+                errors.append(
+                    "agentic.safety.registration_stall_actions must be a positive integer"
+                )
         checkpoints = agentic["checkpoints"]
         if (
             not isinstance(checkpoints, list)
@@ -272,6 +277,28 @@ class HarnessConfig:
         objective = self.raw.get("experiment_objective")
         if objective is not None:
             errors.extend(self._validate_experiment_objective(objective, set(aliases)))
+        validation = self.raw.get("candidate_validation")
+        if validation is not None:
+            errors.extend(self._validate_candidate_validation(validation))
+        return errors
+
+    @staticmethod
+    def _validate_candidate_validation(validation: Any) -> list[str]:
+        if not isinstance(validation, dict):
+            return ["candidate_validation must be a mapping"]
+        policy = validation.get("policy")
+        if policy not in {"strict", "coverage_aware"}:
+            return ["candidate_validation.policy must be strict or coverage_aware"]
+        errors = []
+        if policy == "coverage_aware":
+            for key in (
+                "min_cross_section_coverage",
+                "min_valid_date_fraction",
+                "absolute_nan_cap",
+            ):
+                value = validation.get(key)
+                if not isinstance(value, (int, float)) or not 0 <= float(value) <= 1:
+                    errors.append(f"candidate_validation.{key} must be in [0, 1]")
         return errors
 
     def _validate_experiment_objective(

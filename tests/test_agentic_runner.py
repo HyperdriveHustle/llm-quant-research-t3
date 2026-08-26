@@ -129,7 +129,14 @@ def scripted_actions():
     ]
 
 
-def build_runner(tmp_path: Path, *, actions=None, model_turns=10, initial_factors=None):
+def build_runner(
+    tmp_path: Path,
+    *,
+    actions=None,
+    model_turns=10,
+    initial_factors=None,
+    registration_stall_actions=10,
+):
     config_path = tmp_path / "config.yaml"
     config_path.write_text("profile: agentic_goal_loop\n", encoding="utf-8")
     manifest_path = tmp_path / "manifest.json"
@@ -145,6 +152,7 @@ def build_runner(tmp_path: Path, *, actions=None, model_turns=10, initial_factor
             emergency_model_turns=model_turns,
             checkpoint_evaluations=(1, 2, 5),
             max_submissions=1,
+            registration_stall_actions=registration_stall_actions,
         ),
         policy=ScriptedPolicy(actions or scripted_actions()),
         action_parser=ActionParser(schema_path),
@@ -167,6 +175,7 @@ def build_runner(tmp_path: Path, *, actions=None, model_turns=10, initial_factor
                 recent_event_window=20,
                 max_factor_evaluations=5,
                 plateau_advisory_valid_evaluations=3,
+                registration_stall_actions=registration_stall_actions,
             )
         ),
         project_root=tmp_path,
@@ -221,6 +230,30 @@ def test_model_turn_ceiling_is_a_forced_stop_not_success(tmp_path):
     assert submission.body["search_summary"]["status"] == "forced_stop"
     assert submission.body["factors"] == []
     assert protocol["terminal_status"] == "forced_stop"
+
+
+def test_repeated_empty_candidate_registration_forces_operational_stop(tmp_path):
+    actions = scripted_actions()[:1]
+    duplicate_one = dict(actions[0])
+    duplicate_one["action_id"] = "duplicate_1"
+    duplicate_two = dict(actions[0])
+    duplicate_two["action_id"] = "duplicate_2"
+    runner, schema_path = build_runner(
+        tmp_path,
+        actions=[actions[0], duplicate_one, duplicate_two],
+        registration_stall_actions=2,
+    )
+
+    submission = runner.run()
+    protocol = ProtocolVerifier(
+        trajectory_root=tmp_path / "trajectories",
+        allowed_window_aliases={"search_full"},
+        action_schema_path=schema_path,
+    ).verify(submission)
+
+    assert submission.body["search_summary"]["status"] == "forced_stop"
+    assert protocol["trial_counts"]["candidate_registration_failures"] == 2
+    assert "registration stall" in submission.body["search_summary"]["conclusion"]
 
 
 def test_independent_verifier_recomputes_search_and_hidden_oos(monkeypatch, tmp_path):

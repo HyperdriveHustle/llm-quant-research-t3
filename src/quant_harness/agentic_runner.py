@@ -34,6 +34,7 @@ class AgenticRunnerConfig:
     emergency_model_turns: int | None
     checkpoint_evaluations: tuple[int, ...]
     max_submissions: int
+    registration_stall_actions: int = 10
 
 
 class AgenticSearchRunner:
@@ -77,6 +78,8 @@ class AgenticSearchRunner:
             raise ValueError("runner and ToolGateway submission limits differ")
         if set(projector.config.allowed_window_aliases) != set(gateway.window_aliases):
             raise ValueError("StateProjector and ToolGateway window aliases differ")
+        if projector.config.registration_stall_actions != config.registration_stall_actions:
+            raise ValueError("runner and StateProjector registration stall limits differ")
         self.run_id = run_id or (f"agentic_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}")
         self.run_dir = run_root / self.run_id
         self.ledger_path = trajectory_root / self.run_id / "agent" / "ledger.jsonl"
@@ -166,6 +169,15 @@ class AgenticSearchRunner:
                     response_id=turn.response_id,
                 )
                 state = self._record_crossed_checkpoints(state)
+                if (
+                    state.trial_counts["consecutive_empty_candidate_actions"]
+                    >= self.config.registration_stall_actions
+                    and not state.terminal
+                ):
+                    state = self._force_stop(
+                        state,
+                        "candidate registration stall threshold reached",
+                    )
         submission = self._freeze(state)
         _, final_state = self.ledger.append(
             event_type="artifact_frozen",

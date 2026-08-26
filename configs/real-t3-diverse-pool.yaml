@@ -24,7 +24,7 @@ data:
   benchmark: "SH000300"
   frequency: "day"
   label: "close_return"
-  start: "2017-01-01"
+  start: "2020-01-01"
   end: "2025-12-31"
 
 model:
@@ -48,23 +48,27 @@ agentic:
   goal: "Build a two-factor CSI300 OHLCV research pool through autonomous long-horizon research. The two submitted factors must come from distinct economic mechanisms, each have successful evidence on search_early, search_late and search_full, direction-adjusted IC at least 0.01 with positive RankIC on every window, and search_full IC above the best seed. Use pivot and ablation evidence rather than submitting trivial sign, scale or lookback duplicates. Submit exactly two only if both are supported and expected to be complementary; otherwise conclude no_discovery. Hidden Verifier will require both to retain positive IC/RankIC and mean absolute output correlation no greater than 0.70."
   allowed_actions: ["propose", "evaluate", "refine", "pivot", "stop"]
   window_aliases:
-    search_full: ["2017-01-01", "2022-12-31"]
-    search_early: ["2017-01-01", "2019-12-31"]
-    search_late: ["2020-01-01", "2022-12-31"]
-  check_period: ["2017-01-03", "2017-02-28"]
+    search_full: ["2020-01-01", "2023-12-31"]
+    search_early: ["2020-01-01", "2021-12-31"]
+    search_late: ["2022-01-01", "2023-12-31"]
+  check_period: ["2020-01-01", "2023-12-31"]
   max_candidates_per_action: 4
   safety:
     invalid_action_threshold: 20
     factor_evaluations: 64
     emergency_model_turns: null
+    registration_stall_actions: 12
   checkpoints: [5, 10, 20, 32, 48, 64]
   recent_event_window: 28
   plateau_advisory_valid_evaluations: 16
 
 outcome_verification:
   role: "hidden_oos"
-  start: "2023-01-01"
+  start: "2024-01-01"
   end: "2025-12-31"
+
+candidate_validation:
+  policy: "strict"
 
 experiment_objective:
   objective_id: "diverse-two-factor-pool"

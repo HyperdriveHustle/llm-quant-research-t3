@@ -99,6 +99,61 @@ def apply_paper_overlay(
         old_local,
         "    p = Process(target=_subprocess_entry, args=(q, target, args), daemon=True)",
     )
+    old_nan_gate = """    nan_ratio = float(feat.isna().mean().mean())
+    if nan_ratio > 0.01:
+        return {
+            "success": False,
+            "error_message": f"High NaN ratio: {nan_ratio:.2%}",
+            "error_type": "HIGH_NAN_RATIO",
+        }
+    return {"success": True, "nan_ratio": nan_ratio}"""
+    new_nan_gate = """    nan_ratio = float(feat.isna().mean().mean())
+    nan_policy = os.environ.get("FACTOR_CHECK_NAN_POLICY", "strict")
+    if nan_policy == "coverage_aware":
+        min_cross_section = float(
+            os.environ.get("FACTOR_CHECK_MIN_CROSS_SECTION_COVERAGE", "0.90")
+        )
+        min_valid_dates = float(
+            os.environ.get("FACTOR_CHECK_MIN_VALID_DATE_FRACTION", "0.90")
+        )
+        absolute_nan_cap = float(
+            os.environ.get("FACTOR_CHECK_ABSOLUTE_NAN_CAP", "0.10")
+        )
+        date_level = "datetime" if "datetime" in feat.index.names else -1
+        coverage_by_date = (
+            feat.iloc[:, 0].notna().groupby(level=date_level).mean()
+        )
+        valid_date_fraction = float(
+            (coverage_by_date >= min_cross_section).mean()
+        )
+        minimum_date_coverage = float(coverage_by_date.min())
+        if nan_ratio > absolute_nan_cap or valid_date_fraction < min_valid_dates:
+            return {
+                "success": False,
+                "error_message": (
+                    f"Insufficient coverage: nan_ratio={nan_ratio:.2%}, "
+                    f"valid_date_fraction={valid_date_fraction:.2%}, "
+                    f"minimum_date_coverage={minimum_date_coverage:.2%}"
+                ),
+                "error_type": "INSUFFICIENT_COVERAGE",
+                "nan_ratio": nan_ratio,
+                "valid_date_fraction": valid_date_fraction,
+                "minimum_date_coverage": minimum_date_coverage,
+            }
+        return {
+            "success": True,
+            "nan_ratio": nan_ratio,
+            "valid_date_fraction": valid_date_fraction,
+            "minimum_date_coverage": minimum_date_coverage,
+        }
+    if nan_ratio > 0.01:
+        return {
+            "success": False,
+            "error_message": f"High NaN ratio: {nan_ratio:.2%}",
+            "error_type": "HIGH_NAN_RATIO",
+        }
+    return {"success": True, "nan_ratio": nan_ratio}"""
+    _replace_once(utils, old_nan_gate, new_nan_gate)
     combined = "\n".join(path.read_text(encoding="utf-8") for path in (target, valid, api, client))
     if re.search(r'api_key\s*=\s*["\']sk-', combined):
         raise UpstreamPatchError("hard-coded API key remains after overlay")

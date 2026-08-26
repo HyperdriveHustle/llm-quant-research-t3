@@ -14,6 +14,7 @@ from .env import load_env_file
 from .isolation import assert_runtime_isolation
 from .model import ArkModelClient
 from .orchestrator import run_end_to_end, verify_submission
+from .preflight import run_agentic_preflight
 from .snapshot import build_manifest
 from .suite import read_suite_status, start_suite_background
 from .upstream_patch import apply_paper_overlay
@@ -171,6 +172,7 @@ def main() -> None:
         "audit-data",
         "verify",
         "run",
+        "agentic-preflight",
     ):
         command = sub.add_parser(name)
         command.add_argument("--config", required=True, type=Path)
@@ -218,6 +220,11 @@ def main() -> None:
                 required_end=config.raw["data"]["end"],
                 instruments_name=config.raw["data"]["market"],
             )
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+            code = 0 if report["status"] == "ok" else 1
+        elif args.command == "agentic-preflight":
+            config = load_config(args.config.resolve())
+            report = run_agentic_preflight(config)
             print(json.dumps(report, ensure_ascii=False, indent=2))
             code = 0 if report["status"] == "ok" else 1
         elif args.command == "verify":

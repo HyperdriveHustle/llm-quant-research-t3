@@ -59,6 +59,19 @@ class FFOService:
                 "PYTHONUNBUFFERED": "1",
             }
         )
+        validation = self.config.raw.get("candidate_validation") or {}
+        env.update(
+            {
+                "FACTOR_CHECK_NAN_POLICY": str(validation.get("policy", "strict")),
+                "FACTOR_CHECK_MIN_CROSS_SECTION_COVERAGE": str(
+                    validation.get("min_cross_section_coverage", 0.90)
+                ),
+                "FACTOR_CHECK_MIN_VALID_DATE_FRACTION": str(
+                    validation.get("min_valid_date_fraction", 0.90)
+                ),
+                "FACTOR_CHECK_ABSOLUTE_NAN_CAP": str(validation.get("absolute_nan_cap", 0.10)),
+            }
+        )
         existing_pythonpath = env.get("PYTHONPATH", "")
         env["PYTHONPATH"] = os.pathsep.join(
             part for part in (str(self.config.upstream_runtime), existing_pythonpath) if part

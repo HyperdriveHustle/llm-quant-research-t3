@@ -57,6 +57,7 @@ def build_agentic_runner(
             ),
             checkpoint_evaluations=tuple(int(value) for value in agentic["checkpoints"]),
             max_submissions=int(config.search["max_submissions"]),
+            registration_stall_actions=int(safety.get("registration_stall_actions", 10)),
         ),
         policy=policy,
         action_parser=ActionParser(action_schema_path(config.project_root)),
@@ -83,6 +84,8 @@ def build_agentic_runner(
                 plateau_advisory_valid_evaluations=int(
                     agentic["plateau_advisory_valid_evaluations"]
                 ),
+                max_candidates_per_action=int(agentic["max_candidates_per_action"]),
+                registration_stall_actions=int(safety.get("registration_stall_actions", 10)),
             )
         ),
         project_root=config.project_root,

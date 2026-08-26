@@ -326,6 +326,25 @@ def test_code_or_network_tokens_are_rejected_before_ffo(tmp_path):
     assert execution.protocol_flags[0]["code"] == "UNSAFE_EXPRESSION"
 
 
+def test_data_coverage_failure_is_distinct_from_dsl_failure():
+    class CoverageFFO(FakeFFO):
+        def check(self, expression, **kwargs):
+            return {
+                "success": False,
+                "error_type": "INSUFFICIENT_COVERAGE",
+                "nan_ratio": 0.04,
+            }
+
+    gw = gateway(IDs())
+    gw.search_client = CoverageFFO()
+    state = ResearchState(task_id="task", task_manifest_hash="manifest")
+
+    execution = gw.execute(propose_action(), state, ModelUsage())
+
+    assert execution.status == "rejected"
+    assert execution.protocol_flags[0]["code"] == "DATA_COVERAGE_FAILED"
+
+
 def test_failed_evaluation_cannot_be_submission_evidence(tmp_path):
     class FailedFFO(FakeFFO):
         def evaluate(self, expression, **kwargs):

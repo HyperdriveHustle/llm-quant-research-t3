@@ -29,6 +29,9 @@ def test_upstream_overlay_is_idempotent():
         runtime=config.upstream_runtime,
         expected_commit=config.upstream_commit,
     )
+    source = (config.upstream_runtime / "api" / "utils.py").read_text()
+    assert 'FACTOR_CHECK_NAN_POLICY", "strict"' in source
+    assert "valid_date_fraction" in source
 
 
 def test_alpha158_seed_subset_is_loaded_without_vwap(tmp_path):

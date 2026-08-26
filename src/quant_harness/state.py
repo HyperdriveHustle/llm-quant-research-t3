@@ -36,6 +36,8 @@ class ResearchState:
             "factor_evaluations": 0,
             "invalid_actions": 0,
             "duplicates": 0,
+            "candidate_registration_failures": 0,
+            "consecutive_empty_candidate_actions": 0,
         }
     )
     checkpoints: list[dict[str, Any]] = field(default_factory=list)
@@ -142,6 +144,7 @@ class StateReducer:
             )
             updated.hypotheses[hypothesis_id] = hypothesis
             StateReducer._register_factors(updated, payload["factors"], next_version)
+            StateReducer._record_candidate_registration(updated, payload)
             updated.trial_counts["duplicates"] += len(payload.get("duplicates") or [])
             updated.last_observation = copy.deepcopy(payload["observation"])
         elif event_type == "evaluate":
@@ -161,6 +164,7 @@ class StateReducer:
             updated.last_observation = copy.deepcopy(payload["observation"])
         elif event_type == "refine":
             StateReducer._register_factors(updated, payload["factors"], next_version)
+            StateReducer._record_candidate_registration(updated, payload)
             updated.trial_counts["duplicates"] += len(payload.get("duplicates") or [])
             updated.last_observation = copy.deepcopy(payload["observation"])
         elif event_type == "pivot":
@@ -179,6 +183,7 @@ class StateReducer:
             )
             updated.hypotheses[new_hypothesis_id] = new_hypothesis
             StateReducer._register_factors(updated, payload["factors"], next_version)
+            StateReducer._record_candidate_registration(updated, payload)
             updated.trial_counts["duplicates"] += len(payload.get("duplicates") or [])
             updated.last_observation = copy.deepcopy(payload["observation"])
         elif event_type == "stop":
@@ -219,3 +224,14 @@ class StateReducer:
             record["metrics_by_window"] = {}
             record["experiment_ids"] = []
             state.factors[factor_id] = record
+
+    @staticmethod
+    def _record_candidate_registration(
+        state: ResearchState,
+        payload: dict[str, Any],
+    ) -> None:
+        if payload.get("factors"):
+            state.trial_counts["consecutive_empty_candidate_actions"] = 0
+            return
+        state.trial_counts["candidate_registration_failures"] += 1
+        state.trial_counts["consecutive_empty_candidate_actions"] += 1

@@ -1,6 +1,6 @@
 schema_version: "0.1"
 suite_id: "glm53-real-agentic-3"
-execution: "sequential"
+execution: "parallel"
 require_clean_git: true
 description: "Three real, long-horizon CSI300 agentic factor-research tasks for GLM-5.3 capability evaluation."
 tasks:
