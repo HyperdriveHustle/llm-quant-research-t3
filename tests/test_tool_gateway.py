@@ -187,16 +187,35 @@ def test_unknown_window_and_duplicate_action_are_rejected(tmp_path):
 
 def test_no_discovery_is_first_class_terminal(tmp_path):
     ids, gw, ledger, state = initialized(tmp_path)
-    stop = action_parser().parse(
+    factor_id = next(iter(state.factors))
+    hypothesis_id = next(iter(state.hypotheses))
+    evaluate = action_parser().parse(
         {
             "schema_version": "0.2",
             "action_id": "a2",
+            "action": "evaluate",
+            "reason": "collect counter-evidence",
+            "hypothesis_id": hypothesis_id,
+            "expected_observation": "weak result",
+            "decision_rule": "stop with no discovery if weak",
+            "arguments": {
+                "factor_ids": [factor_id],
+                "window_alias": "search_full",
+            },
+        }
+    )
+    state = apply_execution(ledger, state, gw.execute(evaluate, state, ModelUsage()))
+    evidence_id = next(iter(state.experiments))
+    stop = action_parser().parse(
+        {
+            "schema_version": "0.2",
+            "action_id": "a3",
             "action": "stop",
             "reason": "hypothesis falsified",
             "arguments": {
                 "mode": "no_discovery",
                 "factor_ids": [],
-                "evidence_ids": [],
+                "evidence_ids": [evidence_id],
                 "limitations": ["none"],
                 "conclusion": "No supported discovery",
             },
@@ -205,6 +224,7 @@ def test_no_discovery_is_first_class_terminal(tmp_path):
     execution = gw.execute(stop, state, ModelUsage())
     state = apply_execution(ledger, state, execution)
     assert state.status == "no_discovery"
+    assert state.submitted_evidence_ids == [evidence_id]
 
 
 def test_invalid_and_duplicate_candidates_are_not_registered(tmp_path):

@@ -91,6 +91,7 @@ class PaperRunner:
         self.search_client = search_client
         self.run_id = run_id or f"run_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
         self.run_dir = config.run_root / self.run_id
+        self.harness_source_hash = harness_source_sha256(config.project_root)
         self.trajectory_path = config.trajectory_root / self.run_id / "agent" / "trajectory.jsonl"
         self.trajectory = TrajectoryWriter(self.trajectory_path)
 
@@ -340,6 +341,6 @@ class PaperRunner:
             "data_manifest_sha256": (
                 file_sha256(manifest) if manifest.exists() else "MISSING_UNVERIFIED"
             ),
-            "harness_source_sha256": harness_source_sha256(self.config.project_root),
+            "harness_source_sha256": self.harness_source_hash,
             "trajectory_sha256_before_freeze": trajectory_hash,
         }

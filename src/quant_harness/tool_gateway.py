@@ -401,12 +401,12 @@ class ToolGateway:
                     "FAILED_EVIDENCE",
                     ", ".join(failed_evidence),
                 )
-        elif factor_ids or evidence_ids:
+        elif factor_ids:
             return self._reject(
                 action,
                 usage,
-                "NO_DISCOVERY_REFERENCES_OUTPUT",
-                "no_discovery must not submit factors or evidence",
+                "NO_DISCOVERY_SUBMITS_FACTORS",
+                "no_discovery must not submit factors",
             )
         observation = {
             "status": "terminal",

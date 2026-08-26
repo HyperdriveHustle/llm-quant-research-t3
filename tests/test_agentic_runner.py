@@ -10,7 +10,7 @@ import yaml
 from quant_harness.actions import ActionParser
 from quant_harness.agent_policy import ScriptedPolicy
 from quant_harness.agentic_runner import AgenticRunnerConfig, AgenticSearchRunner
-from quant_harness.artifacts import file_sha256
+from quant_harness.artifacts import ArtifactError, file_sha256
 from quant_harness.ffo import FactorResult
 from quant_harness.protocol_verifier import ProtocolVerifier
 from quant_harness.state_projector import ProjectionConfig, StateProjector
@@ -294,3 +294,11 @@ def test_independent_verifier_recomputes_search_and_hidden_oos(monkeypatch, tmp_
     assert report["generalization_diagnostics"][0]["metrics"]["ic"][
         "retention_ratio"
     ] == pytest.approx(0.2)
+
+    (project / "schemas" / "changed-after-freeze.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(ArtifactError, match="input hashes differ"):
+        verify(
+            config_path=config_path,
+            submission_path=submission.path,
+            report_path=report_path,
+        )

@@ -68,6 +68,7 @@ class AgenticSearchRunner:
         self.data_manifest_path = data_manifest_path
         self.upstream_commit = upstream_commit
         self.initial_factors = list(initial_factors or [])
+        self.harness_source_hash = harness_source_sha256(project_root)
         if gateway.safety_factor_evaluations != config.safety_factor_evaluations:
             raise ValueError("runner and ToolGateway evaluation ceilings differ")
         if projector.config.max_factor_evaluations != config.safety_factor_evaluations:
@@ -359,7 +360,7 @@ class AgenticSearchRunner:
                 "upstream_commit": self.upstream_commit,
                 "config_sha256": file_sha256(self.config_path),
                 "data_manifest_sha256": file_sha256(self.data_manifest_path),
-                "harness_source_sha256": harness_source_sha256(self.project_root),
+                "harness_source_sha256": self.harness_source_hash,
                 "ledger_head_hash": ledger_head_hash,
             },
             search_summary={
