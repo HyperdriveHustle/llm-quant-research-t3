@@ -1,0 +1,103 @@
+schema_version: "0.2"
+profile: "agentic_goal_loop"
+variant_id: "real_t2_liquidity_reversal"
+paper_result: false
+random_seed: 202
+
+upstream:
+  repository: "https://github.com/CityU-MLO/AlphaBench"
+  paper_runtime: "third_party/AlphaBench-paper"
+  full_commit_sha: "3a880599358fc81d8b3e0ec89419a7912a5dc694"
+  engine: "qlib"
+  assay_enabled: false
+
+data:
+  provider_uri: "data/raw/qlib/releases/2026-07-29/cn_data"
+  snapshot_manifest: "data/snapshots/qlib-cn-manifest.json"
+  source:
+    type: "investment_data_release"
+    release_tag: "2026-07-29"
+    manifest_url: "https://github.com/chenditc/investment_data/releases/download/2026-07-29/qlib_bin.manifest.json"
+    archive_url: "https://github.com/chenditc/investment_data/releases/download/2026-07-29/qlib_bin.tar.gz"
+  market: "csi300"
+  instruments: "CSI300"
+  benchmark: "SH000300"
+  frequency: "day"
+  label: "close_return"
+  start: "2015-01-01"
+  end: "2023-12-31"
+
+model:
+  provider: "ark_coding_openai"
+  model_id: "glm-5.3"
+  api_mode: "responses"
+  api_key_env: "ARK_API_KEY"
+  base_url_env: "ARK_BASE_URL"
+  temperature: 0.3
+  timeout_seconds: 600
+
+search:
+  algorithm: "agentic"
+  seed_collections: ["kbar", "price"]
+  exclude_variable: "vwap"
+  max_seeds: 5
+  max_submissions: 1
+
+agentic:
+  task_id: "real-t2-liquidity-reversal"
+  goal: "Autonomously research one interpretable CSI300 volatility, liquidity or volume-conditioned reversal factor using OHLCV only. First establish seed baselines. A submission requires successful search_early, search_late and search_full evidence with direction-adjusted IC at least 0.012 and positive RankIC on every window, search_full IC above the best seed and at least 0.025, and a mechanism that is not merely the sign inversion of a seed. Use ablations to determine whether price, range and relative-volume components contribute. Submit at most one supported factor or conclude no_discovery with the strongest falsifying evidence."
+  allowed_actions: ["propose", "evaluate", "refine", "pivot", "stop"]
+  window_aliases:
+    search_full: ["2015-01-01", "2020-12-31"]
+    search_early: ["2015-01-01", "2017-12-31"]
+    search_late: ["2018-01-01", "2020-12-31"]
+  check_period: ["2015-01-05", "2015-02-27"]
+  max_candidates_per_action: 4
+  safety:
+    invalid_action_threshold: 20
+    factor_evaluations: 48
+    emergency_model_turns: null
+  checkpoints: [5, 10, 20, 32, 48]
+  recent_event_window: 24
+  plateau_advisory_valid_evaluations: 12
+
+outcome_verification:
+  role: "hidden_oos"
+  start: "2021-01-01"
+  end: "2023-12-31"
+
+experiment_objective:
+  objective_id: "liquidity-reversal-discovery"
+  required_search_windows: ["search_early", "search_late", "search_full"]
+  min_direction_adjusted_search_ic: 0.012
+  min_direction_adjusted_search_ic_by_window:
+    search_full: 0.025
+  min_direction_adjusted_search_rank_ic: 0.0
+  min_direction_adjusted_hidden_oos_ic: 0.008
+  min_direction_adjusted_hidden_oos_rank_ic: 0.0
+  require_beats_best_search_seed: true
+  min_submissions: 1
+  min_distinct_hypotheses: 1
+  max_mean_abs_output_correlation: null
+
+paper_metrics:
+  effective_ic_threshold: 0.03
+
+runtime:
+  run_root: "runs"
+  artifact_root: "artifacts"
+  trajectory_root: "trajectories"
+  search:
+    host: "127.0.0.1"
+    port: 19903
+    cache_path: "runs/runtime/real-t2-search/factor_cache.sqlite"
+  verifier:
+    host: "127.0.0.1"
+    port: 19904
+    cache_path: "runs/runtime/real-t2-verifier/factor_cache.sqlite"
+
+extensions:
+  controlled_oos: true
+  agentic_goal_loop: true
+  long_horizon_checkpoints: true
+  null_world: false

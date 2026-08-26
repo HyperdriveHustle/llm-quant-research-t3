@@ -269,6 +269,59 @@ class HarnessConfig:
                 errors.append("outcome_verification requires ISO start/end dates")
         if not self.raw.get("extensions", {}).get("controlled_oos"):
             errors.append("agentic_goal_loop requires extensions.controlled_oos=true")
+        objective = self.raw.get("experiment_objective")
+        if objective is not None:
+            errors.extend(self._validate_experiment_objective(objective, set(aliases)))
+        return errors
+
+    def _validate_experiment_objective(
+        self,
+        objective: Any,
+        window_aliases: set[str],
+    ) -> list[str]:
+        if not isinstance(objective, dict):
+            return ["experiment_objective must be a mapping"]
+        errors = []
+        required_windows = objective.get("required_search_windows")
+        if (
+            not isinstance(required_windows, list)
+            or not required_windows
+            or any(alias not in window_aliases for alias in required_windows)
+        ):
+            errors.append("experiment_objective required windows are invalid")
+        overrides = objective.get("min_direction_adjusted_search_ic_by_window") or {}
+        if not isinstance(overrides, dict) or any(
+            alias not in window_aliases for alias in overrides
+        ):
+            errors.append("experiment_objective window threshold overrides are invalid")
+        for key in (
+            "min_direction_adjusted_search_ic",
+            "min_direction_adjusted_search_rank_ic",
+            "min_direction_adjusted_hidden_oos_ic",
+            "min_direction_adjusted_hidden_oos_rank_ic",
+        ):
+            if not isinstance(objective.get(key), (int, float)):
+                errors.append(f"experiment_objective.{key} must be numeric")
+        min_submissions = objective.get("min_submissions")
+        if (
+            not isinstance(min_submissions, int)
+            or min_submissions < 1
+            or min_submissions > self.search["max_submissions"]
+        ):
+            errors.append("experiment_objective.min_submissions is incompatible with search")
+        min_hypotheses = objective.get("min_distinct_hypotheses", 1)
+        if (
+            not isinstance(min_hypotheses, int)
+            or min_hypotheses < 1
+            or isinstance(min_submissions, int)
+            and min_hypotheses > min_submissions
+        ):
+            errors.append("experiment_objective.min_distinct_hypotheses is invalid")
+        max_correlation = objective.get("max_mean_abs_output_correlation")
+        if max_correlation is not None and (
+            not isinstance(max_correlation, (int, float)) or not 0 <= float(max_correlation) <= 1
+        ):
+            errors.append("experiment_objective correlation threshold must be in [0, 1]")
         return errors
 
     def assert_valid(self, *, require_paths: bool = False) -> None:

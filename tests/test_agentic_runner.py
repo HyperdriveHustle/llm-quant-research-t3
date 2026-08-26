@@ -11,9 +11,11 @@ from quant_harness.actions import ActionParser
 from quant_harness.agent_policy import ScriptedPolicy
 from quant_harness.agentic_runner import AgenticRunnerConfig, AgenticSearchRunner
 from quant_harness.artifacts import ArtifactError, file_sha256
+from quant_harness.config import load_config
 from quant_harness.ffo import FactorResult
 from quant_harness.protocol_verifier import ProtocolVerifier
 from quant_harness.state_projector import ProjectionConfig, StateProjector
+from quant_harness.suite_analysis import analyze_agentic_run
 from quant_harness.tool_gateway import ToolGateway
 from quant_harness.verifier_worker import verify
 
@@ -229,6 +231,18 @@ def test_independent_verifier_recomputes_search_and_hidden_oos(monkeypatch, tmp_
     raw = yaml.safe_load(Path("configs/agentic-smoke.yaml").read_text())
     raw["upstream"]["paper_runtime"] = "third_party/paper"
     raw["data"]["provider_uri"] = "data/cn"
+    raw["experiment_objective"] = {
+        "objective_id": "test-objective",
+        "required_search_windows": ["search_full"],
+        "min_direction_adjusted_search_ic": 0.04,
+        "min_direction_adjusted_search_rank_ic": 0.0,
+        "min_direction_adjusted_hidden_oos_ic": 0.005,
+        "min_direction_adjusted_hidden_oos_rank_ic": 0.0,
+        "require_beats_best_search_seed": False,
+        "min_submissions": 1,
+        "min_distinct_hypotheses": 1,
+        "max_mean_abs_output_correlation": None,
+    }
     config_path = project / "configs" / "agentic.yaml"
     config_path.write_text(yaml.safe_dump(raw), encoding="utf-8")
     manifest_path = project / raw["data"]["snapshot_manifest"]
@@ -296,6 +310,19 @@ def test_independent_verifier_recomputes_search_and_hidden_oos(monkeypatch, tmp_
     ] == pytest.approx(0.2)
     assert report["research_outcome"]["status"] == "not_supported_hidden_oos"
     assert report["research_outcome"]["factors"][0]["supported"] is False
+
+    analysis = analyze_agentic_run(
+        config=load_config(config_path),
+        run_id="run_agentic_test",
+        submission_path=submission.path,
+        verifier_report_path=report_path,
+    )
+    assert analysis["model_turns"] == 5
+    assert len(analysis["optimization_timeline"]) == 2
+    assert analysis["optimization_timeline"][-1]["best_direction_adjusted_ic"] == pytest.approx(
+        0.05
+    )
+    assert analysis["objective_assessment"]["discovery_achieved"] is True
 
     (project / "schemas" / "changed-after-freeze.json").write_text("{}", encoding="utf-8")
     with pytest.raises(ArtifactError, match="input hashes differ"):

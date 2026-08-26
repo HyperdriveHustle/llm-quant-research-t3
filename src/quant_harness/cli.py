@@ -15,6 +15,7 @@ from .isolation import assert_runtime_isolation
 from .model import ArkModelClient
 from .orchestrator import run_end_to_end, verify_submission
 from .snapshot import build_manifest
+from .suite import read_suite_status, start_suite_background
 from .upstream_patch import apply_paper_overlay
 
 
@@ -177,9 +178,22 @@ def main() -> None:
             command.add_argument("--require-data", action="store_true")
         if name == "verify":
             command.add_argument("--submission", required=True, type=Path)
+    start_suite = sub.add_parser("start-suite")
+    start_suite.add_argument("--suite", required=True, type=Path)
+    suite_status = sub.add_parser("suite-status")
+    suite_status.add_argument("--suite-run-dir", required=True, type=Path)
     args = parser.parse_args()
     try:
-        if args.command == "doctor":
+        if args.command == "start-suite":
+            _load_local_env()
+            result = start_suite_background(args.suite.resolve())
+            print(json.dumps({"status": "started", **result}, ensure_ascii=False, indent=2))
+            code = 0
+        elif args.command == "suite-status":
+            result = read_suite_status(args.suite_run_dir.resolve())
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            code = 0
+        elif args.command == "doctor":
             code = doctor(args.config.resolve(), require_data=args.require_data)
         elif args.command == "patch-upstream":
             config = load_config(args.config.resolve())

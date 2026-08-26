@@ -20,10 +20,14 @@ class OrchestrationError(RuntimeError):
     pass
 
 
-def run_end_to_end(config: HarnessConfig) -> tuple[Path, Path]:
+def run_end_to_end(
+    config: HarnessConfig,
+    *,
+    run_id: str | None = None,
+) -> tuple[Path, Path]:
     config.assert_valid(require_paths=True)
     assert_runtime_isolation(config)
-    run_id = f"run_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+    run_id = run_id or f"run_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
     run_log_dir = config.run_root / run_id / "service_logs"
     with FFOService(config, config.search_endpoint, role="search", log_dir=run_log_dir):
         search_client = FFOClient(
