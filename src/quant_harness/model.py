@@ -29,6 +29,11 @@ class ModelResponse:
     output_tokens: int
     raw: dict[str, Any]
     attempts: int = 1
+    status: str | None = None
+    incomplete_reason: str | None = None
+    output_item_types: tuple[str, ...] = ()
+    content_block_types: tuple[str, ...] = ()
+    requested_max_output_tokens: int | None = None
 
 
 def _sha256(text: str) -> str:
@@ -39,22 +44,57 @@ def extract_response_text(payload: dict[str, Any]) -> str:
     direct = payload.get("output_text")
     if isinstance(direct, str) and direct:
         return direct.strip()
+    text_blocks = []
     for item in payload.get("output", []) or []:
         if not isinstance(item, dict):
             continue
+        if item.get("type") in {"output_text", "text"} and isinstance(item.get("text"), str):
+            text_blocks.append(item["text"])
         for content in item.get("content", []) or []:
             if not isinstance(content, dict):
                 continue
             if content.get("type") in {"output_text", "text"} and isinstance(
                 content.get("text"), str
             ):
-                return content["text"].strip()
+                text_blocks.append(content["text"])
+    if text_blocks:
+        return "".join(text_blocks).strip()
     choices = payload.get("choices") or []
     if choices and isinstance(choices[0], dict):
         message = choices[0].get("message") or {}
         if isinstance(message.get("content"), str):
             return message["content"].strip()
+        if isinstance(message.get("content"), list):
+            parts = [
+                part.get("text", "")
+                for part in message["content"]
+                if isinstance(part, dict) and isinstance(part.get("text"), str)
+            ]
+            if parts:
+                return "".join(parts).strip()
     raise ModelError("model response contains no text output")
+
+
+def extract_response_metadata(payload: dict[str, Any]) -> dict[str, Any]:
+    incomplete = payload.get("incomplete_details") or {}
+    choices = payload.get("choices") or []
+    finish_reason = (
+        choices[0].get("finish_reason") if choices and isinstance(choices[0], dict) else None
+    )
+    output_items = [item for item in payload.get("output", []) or [] if isinstance(item, dict)]
+    return {
+        "status": payload.get("status"),
+        "incomplete_reason": incomplete.get("reason") or finish_reason,
+        "output_item_types": tuple(
+            str(item.get("type")) for item in output_items if item.get("type")
+        ),
+        "content_block_types": tuple(
+            str(content.get("type"))
+            for item in output_items
+            for content in (item.get("content", []) or [])
+            if isinstance(content, dict) and content.get("type")
+        ),
+    }
 
 
 def extract_usage(payload: dict[str, Any]) -> tuple[int, int]:
@@ -112,9 +152,12 @@ class ArkModelClient:
         temperature: float,
         json_output: bool = False,
         max_attempts: int = 3,
+        max_output_tokens: int | None = None,
     ) -> ModelResponse:
         if max_attempts < 1:
             raise ValueError("max_attempts must be positive")
+        if max_output_tokens is not None and max_output_tokens < 1:
+            raise ValueError("max_output_tokens must be positive")
         if self.api_mode == "responses":
             endpoint = f"{self.base_url}/responses"
             payload: dict[str, Any] = {
@@ -123,6 +166,8 @@ class ArkModelClient:
                 "input": prompt,
                 "temperature": float(temperature),
             }
+            if max_output_tokens is not None:
+                payload["max_output_tokens"] = int(max_output_tokens)
         else:
             endpoint = f"{self.base_url}/chat/completions"
             payload = {
@@ -136,6 +181,8 @@ class ArkModelClient:
             }
             if json_output:
                 payload["response_format"] = {"type": "json_object"}
+            if max_output_tokens is not None:
+                payload["max_tokens"] = int(max_output_tokens)
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(
             endpoint,
@@ -154,6 +201,7 @@ class ArkModelClient:
                     raw = json.loads(response.read().decode("utf-8"))
                 text = extract_response_text(raw)
                 input_tokens, output_tokens = extract_usage(raw)
+                metadata = extract_response_metadata(raw)
                 result = ModelResponse(
                     text=text,
                     response_id=raw.get("id"),
@@ -161,6 +209,11 @@ class ArkModelClient:
                     output_tokens=output_tokens,
                     raw=raw,
                     attempts=attempt,
+                    status=metadata["status"],
+                    incomplete_reason=metadata["incomplete_reason"],
+                    output_item_types=metadata["output_item_types"],
+                    content_block_types=metadata["content_block_types"],
+                    requested_max_output_tokens=max_output_tokens,
                 )
                 self._record_call(
                     prompt=prompt,
@@ -205,6 +258,11 @@ class ArkModelClient:
             "output_tokens": response.output_tokens,
             "elapsed_seconds": elapsed,
             "attempt": attempt,
+            "status": response.status,
+            "incomplete_reason": response.incomplete_reason,
+            "output_item_types": list(response.output_item_types),
+            "content_block_types": list(response.content_block_types),
+            "requested_max_output_tokens": response.requested_max_output_tokens,
         }
         log_dir = os.getenv("HARNESS_MODEL_LOG_DIR")
         if log_dir:
@@ -235,6 +293,7 @@ def generate_text(
     base_url: str | None = None,
     timeout: int = 180,
     return_raw: bool = False,
+    max_output_tokens: int | None = None,
 ) -> str | dict[str, Any]:
     client = ArkModelClient.from_env(
         model=model,
@@ -248,5 +307,6 @@ def generate_text(
         system_prompt=system_prompt,
         temperature=temperature,
         json_output=json_output,
+        max_output_tokens=max_output_tokens,
     )
     return result.raw if return_raw else result.text

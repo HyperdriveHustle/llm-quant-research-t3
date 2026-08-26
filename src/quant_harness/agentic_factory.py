@@ -40,6 +40,11 @@ def build_agentic_runner(
     policy = GLMAgentPolicy(
         model_client,
         temperature=float(config.model["temperature"]),
+        max_output_tokens=(
+            None
+            if config.model.get("max_output_tokens") is None
+            else int(config.model["max_output_tokens"])
+        ),
     )
     safety = agentic["safety"]
     manifest_path = config.project_root / config.raw["data"]["snapshot_manifest"]

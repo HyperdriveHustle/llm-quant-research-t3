@@ -66,9 +66,11 @@ stop arguments = {"mode":"submit|no_discovery","factor_ids":[],
         client: ArkModelClient,
         *,
         temperature: float,
+        max_output_tokens: int | None = None,
     ):
         self.client = client
         self.temperature = float(temperature)
+        self.max_output_tokens = max_output_tokens
 
     def next_action(self, state_view: dict) -> PolicyTurn:
         response = self.client.generate(
@@ -76,6 +78,7 @@ stop arguments = {"mode":"submit|no_discovery","factor_ids":[],
             prompt=json.dumps(state_view, ensure_ascii=False, separators=(",", ":")),
             temperature=self.temperature,
             json_output=True,
+            max_output_tokens=self.max_output_tokens,
         )
         return PolicyTurn(
             action_text=response.text,

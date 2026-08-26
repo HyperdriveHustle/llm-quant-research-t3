@@ -60,7 +60,7 @@
 - [x] Download supports resumable Range requests and detects truncation.
 - [x] Ruff passes.
 - [x] Python compileall passes.
-- [x] 68 tests pass.
+- [x] 71 tests pass.
 - [x] Measured unit-test coverage is 74%; real end-to-end paths are additionally exercised.
 
 ## Real Smoke Evidence
@@ -81,6 +81,8 @@
 - [x] Paper-compatible strict 1% NaN gate remains active in all three real tasks.
 - [x] All three real-task rolling-factor preflights pass on the frozen Qlib snapshot.
 - [x] Candidate-registration stall is bounded independently of token or evaluator-call budgets.
+- [x] Responses max-output budget and completion metadata are configurable and logged.
+- [x] Historical action replay validates 32K-vs-64K schema completion without touching FFO state.
 
 ## Extensions
 

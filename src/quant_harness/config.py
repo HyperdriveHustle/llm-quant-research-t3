@@ -137,6 +137,11 @@ class HarnessConfig:
             errors.append("model.provider must be ark_coding_openai")
         if model.get("api_mode") not in {"responses", "chat_completions"}:
             errors.append("model.api_mode must be responses or chat_completions")
+        max_output_tokens = model.get("max_output_tokens")
+        if max_output_tokens is not None and (
+            not isinstance(max_output_tokens, int) or max_output_tokens < 1
+        ):
+            errors.append("model.max_output_tokens must be a positive integer or null")
         for key in ("api_key_env", "base_url_env"):
             if not re.fullmatch(r"[A-Z][A-Z0-9_]*", str(model.get(key, ""))):
                 errors.append(f"model.{key} must name an environment variable")

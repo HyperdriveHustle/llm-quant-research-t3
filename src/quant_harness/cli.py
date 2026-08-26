@@ -15,6 +15,7 @@ from .isolation import assert_runtime_isolation
 from .model import ArkModelClient
 from .orchestrator import run_end_to_end, verify_submission
 from .preflight import run_agentic_preflight
+from .replay import replay_action_logs
 from .snapshot import build_manifest
 from .suite import read_suite_status, start_suite_background
 from .upstream_patch import apply_paper_overlay
@@ -184,6 +185,11 @@ def main() -> None:
     start_suite.add_argument("--suite", required=True, type=Path)
     suite_status = sub.add_parser("suite-status")
     suite_status.add_argument("--suite-run-dir", required=True, type=Path)
+    replay = sub.add_parser("replay-actions")
+    replay.add_argument("--config", required=True, type=Path)
+    replay.add_argument("--call-log", required=True, action="append", type=Path)
+    replay.add_argument("--max-output-tokens", required=True, type=int)
+    replay.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     try:
         if args.command == "start-suite":
@@ -195,6 +201,19 @@ def main() -> None:
             result = read_suite_status(args.suite_run_dir.resolve())
             print(json.dumps(result, ensure_ascii=False, indent=2))
             code = 0
+        elif args.command == "replay-actions":
+            _load_local_env()
+            config = load_config(args.config.resolve())
+            report = replay_action_logs(
+                config=config,
+                call_logs=[path.resolve() for path in args.call_log],
+                max_output_tokens=args.max_output_tokens,
+                output_path=args.output.resolve(),
+            )
+            summary = {key: value for key, value in report.items() if key != "calls"}
+            summary["output_path"] = str(args.output.resolve())
+            print(json.dumps(summary, ensure_ascii=False, indent=2))
+            code = 0 if report["completed_count"] == report["call_count"] else 1
         elif args.command == "doctor":
             code = doctor(args.config.resolve(), require_data=args.require_data)
         elif args.command == "patch-upstream":
