@@ -4,7 +4,7 @@
 
 - Scope: standalone Harness, pinned Paper Runtime overlay, data pipeline, dual FFO runtime, model adapter, verifier, artifacts, trajectory, reports and tests.
 - Review perspectives: Skeptic, Architect, Minimalist.
-- Verdict: PASS for v0.1 paper-compatible Harness.
+- Verdict: PASS for v0.1 paper-compatible Harness and v0.2 agentic extension.
 - Not claimed: exact author data reproduction, full benchmark execution, arbitrary-code Agent sandbox.
 
 ## Intent
@@ -90,3 +90,17 @@ The model required two Responses API calls because the first output failed the p
 ## Verdict Rationale
 
 PASS means the v0.1 Harness is suitable for running a paper-compatible T3 experiment. It does not mean the full paper result has been reproduced. The remaining limitations are explicit, fail-closed in config, and do not invalidate the completed strict smoke path.
+
+## v0.2 Agentic Extension Review
+
+The v0.2 branch adds a second SearchRunner without changing PaperRunner. GLM-5.3 owns `propose / evaluate / refine / pivot / stop`; deterministic code owns JSON-schema validation, immutable ID registration, Search FFO execution, state reduction, safety finalization and artifact freezing. Every valid action and invalid repair turn is hash-chained in `ledger.jsonl`, and ProtocolVerifier replays the full state before any outcome metric is accepted.
+
+Skeptic review found and resolved four material issues during real smoke: an orchestrator-created `service_logs` directory conflicted with runner initialization; a 180-second model timeout was too short for GLM-5.3 long reasoning; auxiliary seed evidence was initially rejected even though it legitimately supported a relative-performance claim; and FFO exceptions could abort an episode instead of becoming failed experiments. Tests now cover run-directory reuse, oversized/malicious actions, unknown IDs, failed evidence, FFO exceptions, forced stop, hash tampering and hidden-period separation.
+
+Architect review confirmed that AgenticSearchRunner receives a Search-role client only. Search FFO terminates before the Verifier FFO and credential-sanitized verifier worker start. The frozen boundary includes config, data manifest, pinned upstream, Harness Python/schema source tree and pre-freeze ledger head. Search evidence is independently recomputed before hidden OOS is evaluated; OOS output never returns to the ended episode.
+
+Minimalist review removed the over-restrictive auxiliary-evidence rule and retained the original Alpha158 loader, Qlib DSL, FFO engine, metrics and FrozenSubmission channel. No shell, Python execution, general network tool, portfolio engine or parallel factor evaluator was introduced into the model tool surface.
+
+The completed real run `run_20260826_085722_b5d234d6` used eight successful model calls, five factor evaluations and four recorded invalid/repair turns. Search selected `REV_COMB` with IC 0.0346434 and RankIC 0.0575544; independent search recomputation matched exactly. Hidden 2023Q2 OOS IC was -0.0012275, only 3.54% absolute retention with sign reversal, and 0.0120834 below the best hidden seed IC. The correct verdict is therefore: protocol and pipeline success, but the submitted research finding is overfit and not an OOS discovery.
+
+Remaining limitations are explicit: arbitrary-code tools still require OS/container isolation; null/falsification task groups are not yet run; exact-prefix hidden replay and cross-run checkpoint aggregation remain future analysis; and the publisher still does not provide the authors' exact Qlib snapshot hash.

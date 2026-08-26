@@ -37,10 +37,10 @@ trajectory.jsonl 将不同算法统一成 append-only 事件：
 
 Extension 才额外使用：
 
-    hypothesis_proposed
-    ablation_requested
-    pivot_requested
-    stop_requested
+    bootstrap / propose / evaluate / refine / pivot / stop
+    invalid_action / checkpoint / forced_stop / artifact_frozen
+
+Agentic profile 使用 `ledger.jsonl`：每个事件包含连续 sequence、state_version、previous_hash 和 event_hash；Verifier 从 genesis 重放 reducer，并验证冻结前 ledger head。模型 action 原文、Harness tool result、失败和重复均保留。
 
 ## 2. 通用事件
 

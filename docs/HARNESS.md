@@ -2,21 +2,22 @@
 
 ## 1. 设计原则
 
-Harness 是论文环境的薄封装，不重写 AlphaBench 的因子引擎或搜索算法。首版职责只有：
+Harness 是论文环境的薄封装，不重写 AlphaBench 的因子引擎或指标。v0.2 职责是：
 
 1. 锁定并启动官方 AlphaBench/Qlib/FFO；
 2. 适配 GLM-5.3；
 3. 固化配置、数据和输出；
 4. 隔离 Agent Runtime 与 Verifier Runtime；
 5. 记录可审计 trajectory；
-6. 运行论文指标。
+6. 运行论文指标；
+7. 在 extension profile 中执行模型自主 action loop 与隐藏 OOS 验证。
 
 可扩展性来自稳定接口，不来自首版增加更多功能。
 
 ## 2. 运行边界
 
     ┌──────────────── Agent Runtime ────────────────┐
-    │ GLM Adapter → Official T3 Searcher → Search FFO │
+    │ GLM Adapter → PaperRunner / AgenticRunner → Search FFO │
     │                         ↓                       │
     │              search-period Qlib snapshot       │
     │              search-only cache/credential      │
@@ -54,7 +55,7 @@ Verifier 不运行 GLM，不接受研究动作。Agent 不持有 verifier endpoi
 
     run(task_config, model_adapter, trajectory_sink) -> FrozenSubmission
 
-Strict 实现是 OfficialAlphaBenchT3Runner。未来 Agentic 实现可以新增，但必须使用相同 FactorEvaluator。
+Paper 实现是 `PaperRunner`；v0.2 实现是 `AgenticSearchRunner`。后者不复写 Qlib、Alpha158 或 FFO，只把 loop control 交给模型。
 
 ### FactorEvaluator
 
@@ -74,7 +75,7 @@ Strict 实现只是 AlphaBench FFO client adapter。Harness 不重新计算 IC�
     name/direction
     seed/parent references
     algorithm/config
-    upstream/data/prompt hashes
+        upstream/data/config/Harness-source/ledger hashes
     search metrics
     trajectory hash
 
@@ -149,16 +150,20 @@ Search 与 Verify cache key 都必须包含：
 - validation/test 不可见；
 - 用于过拟合分析。
 
-### agentic_goal_loop（关闭）
+### agentic_goal_loop（v0.2 已实现）
 
 - 只替换 SearchRunner；
-- 模型自主选择研究动作；
-- 其他核心组件不变。
+- 模型自主选择 propose / evaluate / refine / pivot / stop；
+- ToolGateway 只接受注册 ID、Qlib 公式和预注册 search window alias；
+- Alpha158 seeds、Qlib/FFO、FrozenSubmission 与独立 Verifier 保持复用；
+- `no_discovery` 与 `submit` 都是合法终态。
 
-### long_horizon_checkpoints（关闭）
+### long_horizon_checkpoints（v0.2 基础能力已实现）
 
-- 不限制 Agent 的模型调用；
-- 在预注册 evaluator-call 前缀保存 best-so-far、累计 token 和 OOS 回放。
+- 研究配置可以把 `emergency_model_turns` 设为 `null`，不设置实验性 model-call/token 总预算；
+- 因子评价仍有安全上限，达到上限后模型只能执行 stop；
+- 在预注册 evaluator-call 阈值首次到达或越过时保存 best-so-far、累计 token、分支宽度/深度与状态 hash；
+- 隐藏 OOS 只在 Agent 终止并冻结后运行，结果不回流当前 episode。
 
 ## 7. 目录和依赖隔离
 

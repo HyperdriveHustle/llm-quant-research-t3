@@ -2,9 +2,9 @@
 
 这是一个全新、独立的 AlphaBench T3 Harness。项目不依赖本仓库已有的量化代码或数据；Qlib 数据、pinned upstream、配置、运行记录、trajectory 和评测产物均在本目录隔离。
 
-首版核心问题是：在 AlphaBench T3 的 seed、搜索算法、过滤和指标下，GLM-5.3 的因子搜索表现如何。模型自主 loop、controlled OOS 和 long-horizon checkpoints 是关闭的扩展。
+v0.1 回答：在 AlphaBench T3 的 seed、搜索算法、过滤和指标下，GLM-5.3 的因子搜索表现如何。v0.2 新增独立的 `agentic_goal_loop` profile：模型自主决定 propose / evaluate / refine / pivot / stop，Harness 只负责协议、工具执行、账本、安全边界和冻结。
 
-首个 profile 尽量保持论文设计：Qlib/FFO、CSI300 日频 OHLCV、Alpha158 seed、CoE/ToT/EA、论文过滤规则和论文搜索指标。Agentic Goal Loop、long-horizon checkpoints 和额外过拟合诊断全部作为独立 extension profile，不进入 strict_t3 主分数。
+论文 profile 继续保持 Qlib/FFO、CSI300 日频 OHLCV、Alpha158 seed、CoE/ToT/EA、论文过滤规则和论文搜索指标。Agentic Goal Loop、long-horizon checkpoints 和隐藏 OOS 诊断是单独的 extension profile，不进入 strict_t3 主分数。
 
 参考基线：
 
@@ -37,6 +37,7 @@
     Pinned AlphaBench + Qlib Snapshot + Alpha158 Seeds
                         ↓
              Official CoE / ToT / EA Loop
+                  或 AgenticSearchRunner
                         ↓
                  GLM-5.3 Candidates
                         ↓
@@ -78,7 +79,10 @@
 - immutable FrozenSubmission 与 config/data/upstream hash gate；
 - 原生 upstream logs + normalized agent/verifier trajectory；
 - 论文 IC threshold、retry/success、update 和 diversity 报告；
-- 单元、集成、静态检查和真实端到端 smoke。
+- 单元、集成、静态检查和真实端到端 smoke；
+- v0.2 model-controlled action loop、确定性 StateProjector、hash-chained ResearchLedger；
+- Search 证据复算、隐藏 OOS、seed-relative delta 与 generalization diagnostics；
+- config/data/upstream/Harness source/ledger 五层输入与轨迹指纹。
 
 ## 使用
 
@@ -93,6 +97,10 @@
     ./.venv/bin/qharness doctor --config configs/smoke.yaml --require-data
     ./.venv/bin/qharness model-smoke --config configs/smoke.yaml
     ./.venv/bin/qharness run --config configs/smoke.yaml
+
+    # v0.2 自主研究 smoke：搜索期 2023Q1，隐藏 OOS 2023Q2
+    ./.venv/bin/qharness doctor --config configs/agentic-smoke.yaml --require-data
+    ./.venv/bin/qharness run --config configs/agentic-smoke.yaml
 
 论文兼容参数使用：
 

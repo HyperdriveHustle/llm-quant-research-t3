@@ -32,7 +32,7 @@
 - [x] API key stored only in ignored chmod-600 .env.
 - [x] API key excluded from config, logs, artifacts and trajectories.
 - [x] Upstream hard-coded third-party credential removed by overlay.
-- [x] Prompt semantics preserved; transport adds no extra research instruction.
+- [x] PaperRunner prompt semantics preserved; Agentic profile uses its separately versioned action prompt.
 - [x] Token usage and response hashes recorded.
 
 ## Agent / Verifier Isolation
@@ -46,6 +46,7 @@
 - [x] Agent completes and freezes before Verifier starts.
 - [x] FrozenSubmission is hash-addressed and read-only.
 - [x] Verifier checks submission, config, data manifest and upstream hashes.
+- [x] Verifier checks the Harness Python/schema source-tree fingerprint.
 - [x] Verifier recomputes metrics rather than trusting Agent output.
 - [x] Verifier results are stored in a separate trajectory.
 - [ ] OS-user/container isolation is required before enabling arbitrary-code Agent tools.
@@ -59,8 +60,8 @@
 - [x] Download supports resumable Range requests and detects truncation.
 - [x] Ruff passes.
 - [x] Python compileall passes.
-- [x] 26 tests pass.
-- [x] Measured unit-test coverage is 66%; real end-to-end paths are additionally exercised.
+- [x] 60 tests pass.
+- [x] Measured unit-test coverage is 74%; real end-to-end paths are additionally exercised.
 
 ## Real Smoke Evidence
 
@@ -70,11 +71,15 @@
 - [x] Final smoke candidate was independently recomputed with zero metric mismatch.
 - [x] Artifact/log/trajectory secret scan passed.
 - [x] Smoke result remains labeled paper_result=false.
+- [x] Agentic GLM-5.3 smoke completed Search FFO → freeze → protocol verifier → hidden OOS.
+- [x] Search evidence recomputed with zero metric mismatch.
+- [x] Hidden OOS exposed search overfit rather than feeding results back to the Agent.
 
 ## Extensions
 
-- [x] Interfaces leave room for controlled OOS, Agentic Goal Loop and long-horizon checkpoints.
+- [x] Agentic Goal Loop action/state/ledger/gateway runtime is implemented in v0.2.
+- [x] Controlled hidden OOS and seed-relative diagnostics are implemented for the agentic profile.
+- [x] Evaluator-call/token checkpoints are recorded for long-horizon analysis.
 - [x] All extensions are disabled in paper-compatible config.
-- [ ] Controlled OOS is not implemented in v0.1.
-- [ ] Agentic Goal Loop is not implemented in v0.1.
-- [ ] Long-horizon checkpoint aggregation is not implemented in v0.1.
+- [ ] Null/falsification-world task groups remain future experiment work.
+- [ ] Exact-prefix OOS replay and cross-run checkpoint aggregation remain future analysis work.

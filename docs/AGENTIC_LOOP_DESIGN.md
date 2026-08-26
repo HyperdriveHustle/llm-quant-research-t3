@@ -1,9 +1,9 @@
 # Model-controlled Agentic Research Loop Design
 
-Status: design only
+Status: implemented and smoke-tested
 Target version: v0.2
 Baseline: v0.1.0-paper-harness
-Branch: codex/agentic-loop-design
+Implementation branch: codex/agentic-loop-v0.2
 
 ## 1. Decision
 
@@ -171,7 +171,7 @@ Modes:
 
 For submit, the model supplies factor IDs, evidence IDs, limitations and the frozen direction.
 
-For no_discovery, the model supplies rejected hypotheses, strongest counter-evidence and remaining uncertainty.
+For no_discovery, the model records its conclusion and limitations; rejected hypotheses and counter-evidence remain in the immutable ledger.
 
 Harness behavior:
 
@@ -271,7 +271,7 @@ StateProjector builds a deterministic view containing:
 - plateau advisory;
 - current evaluator-call checkpoint.
 
-Raw events remain available by ID through a read-only history query internal to StateProjector. No second LLM summarizes state in v0.2; this avoids summary drift and hidden decision-making by another model.
+Raw events remain in the verifier-readable ledger. The model receives recent experiments plus compact evidence IDs on top factors; v0.2 does not expose a free-form history tool. No second LLM summarizes state, avoiding summary drift and hidden decision-making by another model.
 
 ## 10. Loop algorithm
 
@@ -326,20 +326,21 @@ ForcedStop is not considered a successful model stop.
 
 ## 12. Checkpoints without model-call budget
 
-The episode is not token-limited. Harness records immutable prefixes at:
+The episode is not token-limited. Research profiles may set the emergency model-turn ceiling to null. Harness records the first immutable state at or after each configured evaluator-call threshold:
 
     50 / 100 / 250 / 500 / 1000 / 2500 / 5000 factor evaluations
 
 Each checkpoint stores:
 
 - state hash;
-- best factor/pool at that prefix;
+- threshold and actual evaluator-call count (a batch may cross a threshold);
+- best factor/pool at that recorded state;
 - cumulative model calls and tokens;
 - hypothesis breadth/depth;
 - duplicate and repair rates;
 - search metrics.
 
-After the episode, Verifier may replay each frozen prefix on hidden data. Hidden results are never returned to the run.
+v0.2 stores replayable checkpoints and performs final hidden-OOS verification. Exact-prefix hidden replay and cross-run aggregation remain follow-up analysis; hidden results are never returned to the run.
 
 ## 13. Verifier design
 
@@ -383,7 +384,7 @@ ToolGateway must reject:
 - mutation of existing records;
 - factors not produced through registered actions.
 
-Search FFO accepts only normalized expressions and registered period aliases. Verify FFO remains a separate process/cache/credential domain and starts only after Agent termination.
+ToolGateway sends Search FFO only allowlisted Qlib expressions and dates resolved from registered period aliases. Verify FFO remains a separate process/cache/credential domain and starts only after Agent termination.
 
 ## 15. Multiple testing
 
@@ -402,7 +403,7 @@ Open-ended tasks must be paired with Group F null/falsification tasks. A no_disc
 
 ## 16. Configuration design
 
-The non-runnable design profile is in ../configs/agentic-loop.design.yaml.
+The abstract profile is in ../configs/agentic-loop.design.yaml. A runnable, explicitly non-paper smoke profile is in ../configs/agentic-smoke.yaml.
 
 Key controls:
 
@@ -414,7 +415,7 @@ Key controls:
     invalid_action_threshold
     verifier_profile
 
-There is no total model-call or token limit.
+There is no experimental model-call or token budget. `emergency_model_turns` is an optional operational fail-safe and may be null for long runs.
 
 ## 17. Version migration
 
