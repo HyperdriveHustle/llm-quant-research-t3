@@ -60,7 +60,7 @@
 - [x] Download supports resumable Range requests and detects truncation.
 - [x] Ruff passes.
 - [x] Python compileall passes.
-- [x] 71 tests pass.
+- [x] 75 tests pass.
 - [x] Measured unit-test coverage is 74%; real end-to-end paths are additionally exercised.
 
 ## Real Smoke Evidence
@@ -83,6 +83,9 @@
 - [x] Candidate-registration stall is bounded independently of token or evaluator-call budgets.
 - [x] Responses max-output budget and completion metadata are configurable and logged.
 - [x] Historical action replay validates 32K-vs-64K schema completion without touching FFO state.
+- [x] Compact state replay reduces the failing T1 prompt by 43% and returns a valid action within 64K.
+- [x] Runtime ObjectiveTracker gates submission and prevents premature no-discovery.
+- [x] Provider-incomplete model outputs are tracked separately from invalid research actions.
 
 ## Extensions
 

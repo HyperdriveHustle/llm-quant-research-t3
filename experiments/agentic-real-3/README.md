@@ -4,11 +4,11 @@
 
 | 任务 | 真实目标 | 搜索期 / 隐藏 OOS | 安全评价上限 | 成功判定重点 |
 |---|---|---|---:|---|
-| T1 Cross-regime trend | 找到跨阶段稳定的趋势或动量因子 | 2020–2023 / 2024–2025 | 48 | early、late、full 均为正，full IC≥0.03、超过 seed，OOS IC≥0.01 |
-| T2 Liquidity reversal | 找到具有价格、区间或相对成交量机制的反转因子 | 2020–2023 / 2024–2025 | 48 | 三窗口稳定、full IC≥0.025、超过 seed，并通过 OOS |
-| T3 Diverse pool | 找到两个不同机制且互补的因子 | 2020–2023 / 2024–2025 | 64 | 两个不同 hypothesis，三窗口与 OOS 均有效，OOS 平均绝对相关≤0.70 |
+| T1 Cross-regime trend | 找到跨阶段稳定的趋势或动量因子 | 2020–2023 / 2024–2025 | 96 | early、late、full 均为正，full IC≥0.03、超过 seed，OOS IC≥0.01 |
+| T2 Liquidity reversal | 找到具有价格、区间或相对成交量机制的反转因子 | 2020–2023 / 2024–2025 | 96 | 三窗口稳定、full IC≥0.025、超过 seed，并通过 OOS |
+| T3 Diverse pool | 找到两个不同机制且互补的因子 | 2020–2023 / 2024–2025 | 128 | 两个不同 hypothesis，三窗口与 OOS 均有效，OOS 平均绝对相关≤0.70 |
 
-这些阈值是预注册的实验 gate。模型正常停止仍由模型决定；若它提交不完整证据，离线 objective assessor 会判为未达成，而不会事后修改 trajectory。`emergency_model_turns=null` 表示不设置实验性模型调用或 token 总预算；factor-evaluation ceiling 与连续候选注册失败熔断只是防止失控的操作安全边界。正式任务继续使用论文的严格 1% NaN gate，但把 check period 扩展到共同的 2020–2023，启动前必须通过 5/20/60 日代表性 rolling-factor preflight。
+这些阈值是预注册的实验 gate。实时 ObjectiveTracker 将缺失窗口、阈值差距和可提交 factor IDs 直接反馈给模型；未达成目标时，Gateway 在 evaluator safety ceiling 前拒绝 `no_discovery`。`emergency_model_turns=null` 表示不设置实验性模型调用或 token 总预算；单轮 Responses 输出上限为 65,536、timeout 为 1,200 秒，达到 provider output limit 的 incomplete 响应单独记录而不计入 invalid-action threshold。正式任务继续使用论文的严格 1% NaN gate，check period 为共同的 2020–2023，启动前必须通过 5/20/60 日 rolling-factor preflight。
 
 每个 run 的 `ledger.jsonl` 记录模型 action、无效修复、假设、父子因子、每次 FFO 结果、累计 model calls/tokens 和 checkpoints。任务完成后生成独立 analysis JSON，其中包括模型轮次、动作分布、候选与假设数量、总 tokens、Agent 耗时、模型延迟统计、逐次评价的 best-IC 优化曲线、checkpoint 状态、Verifier 结果和预注册目标是否达成。Suite status 在任务运行中可动态读取 ledger，显示当前轮次、评价数、tokens、耗时和最后事件。
 

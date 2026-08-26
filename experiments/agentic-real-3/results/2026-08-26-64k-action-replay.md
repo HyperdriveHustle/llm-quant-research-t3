@@ -52,3 +52,9 @@ runs/replay/glm53-action-64k-1200s-t1-20260826.json
 Increasing the output budget from 32K to 64K can recover some complex actions, but it does not reliably solve schema stability. One of two representative replays became valid; the harder T1 state consumed the entire doubled allowance and still failed. Raising the invalid-action or total-turn limit without reducing this failure mode would multiply latency and token cost: the failed T1 replay consumed 65,536 output tokens and almost 16 minutes for no usable action.
 
 The next experiment should not immediately rerun the full suite. It should compare a compact ResearchState plus an action-serialization mode with deep thinking disabled or function-call arguments. Provider truncation/incomplete responses must be classified separately from model schema violations and must not increment the research invalid-action threshold.
+
+## Follow-up compatibility and compact-state tests
+
+Further provider tests showed that this GLM-5.3 endpoint does not support `thinking.type=disabled`, and Chat Completions does not support `response_format.type=json_schema`. Chat JSON mode still exhausted an 8,192-token budget on the uncompressed T1 state and returned only `{"`.
+
+The deterministic StateProjector was then compacted: repeated expected observations/decision rules were removed from recent experiments and last observation, top-factor rationale was omitted, and checkpoint/history views were bounded. The same T1 state fell from 51,492 to 29,145 characters and from 16,314 historical input tokens to 11,538 replay input tokens. A Responses replay with 65,536 output budget completed in 314.9 seconds using 19,693 output tokens and returned a 4,899-character, schema-valid `pivot` action. This validates `compact state + Responses 64K` as the rerun configuration; unsupported structured-output/thinking controls remain disabled.
